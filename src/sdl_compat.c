@@ -2329,14 +2329,6 @@ lw_sdl_present_screen (void)
   lw_shake_x *= 0.85f;
   lw_shake_y *= 0.85f;
   SDL_RenderPresent (lw_sdl_renderer);
-
-  /* DEBUG screenshot */
-  {
-    static int dbg_frame = 0;
-    dbg_frame++;
-    if (dbg_frame == 120)
-      SDL_SaveBMP (lw_convert_surface, "/tmp/x.bmp");
-  }
 }
 
 /*==================================================================*/
