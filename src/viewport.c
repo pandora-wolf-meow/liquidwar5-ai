@@ -201,6 +201,10 @@ page_flip (void)
       VIEWPORT_CHANGE_REGISTERED--;
     }
 
+  /* SDL2: present the screen bitmap to the window and pump events */
+  lw_sdl_present_screen ();
+  lw_sdl_pump_events ();
+
   return (NEXT_SCREEN);
 }
 

@@ -68,89 +68,25 @@
 /* variables globales                                               */
 /*==================================================================*/
 
-#ifdef DOS
-int GFX_MODE_W[5] = { 320, 360, 640, 800, 1024 };
-int GFX_MODE_H[5] = { 240, 240, 480, 600, 768 };
-#endif
-
-#ifdef WIN32
+/* SDL2: resolution modes are cross-platform */
 int GFX_MODE_W[5] = { 320, 512, 640, 800, 1024 };
 int GFX_MODE_H[5] = { 240, 384, 480, 600, 768 };
-#endif
 
-#ifdef UNIX
-#ifdef GP2X
-int GFX_MODE_W[5] = { 320, 320, 320, 320, 320 };
-int GFX_MODE_H[5] = { 240, 240, 240, 240, 240 };
-#else
-int GFX_MODE_W[5] = { 320, 512, 640, 800, 1024 };
-int GFX_MODE_H[5] = { 240, 384, 480, 600, 768 };
-#endif
-#endif
-
-#ifdef DOS
-static int GFX_MODE_TYPE_FULLSCREEN[] = { GFX_MODEX,
-  GFX_MODEX,
-  GFX_VESA2L,
-  GFX_VESA2L,
-  GFX_VESA2L
-};
-
-static int GFX_MODE_TYPE_WINDOWED[] = { GFX_MODEX,
-  GFX_MODEX,
-  GFX_VESA2L,
-  GFX_VESA2L,
-  GFX_VESA2L
-};
-#endif
-
-#ifdef WIN32
-static int GFX_MODE_TYPE_FULLSCREEN[] = { GFX_DIRECTX,
-  GFX_DIRECTX,
-  GFX_DIRECTX,
-  GFX_DIRECTX,
-  GFX_DIRECTX
-};
-
-static int GFX_MODE_TYPE_WINDOWED[] = { GFX_DIRECTX_WIN,
-  GFX_DIRECTX_WIN,
-  GFX_DIRECTX_WIN,
-  GFX_DIRECTX_WIN,
-  GFX_DIRECTX_WIN
-};
-#endif
-
-#ifdef UNIX
-#ifdef GP2X
-static int GFX_MODE_TYPE_FULLSCREEN[] = { GFX_GP2X,
-  GFX_GP2X,
-  GFX_GP2X,
-  GFX_GP2X,
-  GFX_GP2X
-};
-
-static int GFX_MODE_TYPE_WINDOWED[] = { GFX_GP2X,
-  GFX_GP2X,
-  GFX_GP2X,
-  GFX_GP2X,
-  GFX_GP2X
-};
-#else
-static int GFX_MODE_TYPE_FULLSCREEN[] = { GFX_AUTODETECT_FULLSCREEN,
+static int GFX_MODE_TYPE_FULLSCREEN[] = {
+  GFX_AUTODETECT_FULLSCREEN,
   GFX_AUTODETECT_FULLSCREEN,
   GFX_AUTODETECT_FULLSCREEN,
   GFX_AUTODETECT_FULLSCREEN,
   GFX_AUTODETECT_FULLSCREEN
 };
 
-static int GFX_MODE_TYPE_WINDOWED[] = { GFX_AUTODETECT_WINDOWED,
+static int GFX_MODE_TYPE_WINDOWED[] = {
+  GFX_AUTODETECT_WINDOWED,
   GFX_AUTODETECT_WINDOWED,
   GFX_AUTODETECT_WINDOWED,
   GFX_AUTODETECT_WINDOWED,
   GFX_AUTODETECT_WINDOWED
 };
-#endif
-#endif
 
 /*==================================================================*/
 /* fonctions                                                        */
@@ -214,9 +150,7 @@ set_resolution (int res, int flip, int fullscreen, int *flip_enabled)
   int toggle;
   int i;
 
-#ifdef GP2X
-  fullscreen = 1;
-#endif
+  /* GP2X forced fullscreen removed - SDL2 handles this */
 
   if (flip_enabled)
     {

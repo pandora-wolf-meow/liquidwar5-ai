@@ -126,7 +126,7 @@ init_all ()
   lw_lang_init ();
   set_uformat (U_ASCII);
 
-  log_print_str ("Starting Allegro (http://www.talula.demon.co.uk/allegro)");
+  log_print_str ("Starting SDL2 (https://www.libsdl.org/)");
   display_success (graphics = !allegro_init ());
   log_println ();
 
@@ -134,10 +134,7 @@ init_all ()
     {
       LW_INIT_ALLEGRO_OK = 1;
 
-#ifdef DOS
-      set_gfx_mode (GFX_TEXT, 0, 0, 0, 0);
-#endif
-      log_print_str ("Allegro ID : ");
+      log_print_str ("SDL2 version : ");
       log_println_str (allegro_id);
       log_println ();
 

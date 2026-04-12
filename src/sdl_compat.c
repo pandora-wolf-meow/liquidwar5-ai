@@ -1773,6 +1773,28 @@ _draw_scrollable_frame (DIALOG * d, int listsize, int offset,
 /*==================================================================*/
 
 /*==================================================================*/
+/* Screen presentation - upload screen surface to window            */
+/*==================================================================*/
+
+void
+lw_sdl_present_screen (void)
+{
+  SDL_Texture *tex;
+
+  if (!screen || !screen->sdl_surface || !lw_sdl_renderer)
+    return;
+
+  tex = SDL_CreateTextureFromSurface (lw_sdl_renderer, screen->sdl_surface);
+  if (tex)
+    {
+      SDL_RenderClear (lw_sdl_renderer);
+      SDL_RenderCopy (lw_sdl_renderer, tex, NULL, NULL);
+      SDL_RenderPresent (lw_sdl_renderer);
+      SDL_DestroyTexture (tex);
+    }
+}
+
+/*==================================================================*/
 /* Keyboard helper functions                                        */
 /*==================================================================*/
 

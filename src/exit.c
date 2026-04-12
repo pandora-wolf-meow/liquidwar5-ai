@@ -109,7 +109,7 @@ exit_all (void)
 
       log_println ();
       log_println_str
-        ("Leaving Allegro (http://www.talula.demon.co.uk/allegro)");
+        ("Leaving SDL2 (https://www.libsdl.org/)");
       save_config_options ();
       stop_water ();
       stop_ticker ();
@@ -272,6 +272,11 @@ my_exit_close_button (void)
 void
 my_exit_poll ()
 {
+  /*
+   * Pump SDL2 events to keep input and window state fresh
+   */
+  lw_sdl_pump_events ();
+
   /*
    * We exit if the close button has been clicked or
    * F10 has been pressed
