@@ -21,6 +21,61 @@ Have a good day,
 
 U-Foot
 
+AI Fork
+-------
+
+This is an AI-enhanced fork of Liquid War 5. Changes from upstream:
+
+- **Smarter AI opponents** — scored target selection based on enemy density, proximity, and health instead of random targeting
+- **Periodic replanning** — AI adapts to battlefield changes every N ticks
+- **Defensive retreat** — AI consolidates forces when losing fighters rapidly
+- **Headless mode** (`-headless`) — runs games at max speed with no display for batch simulation
+- **Reproducible seeds** (`-seed N`) — deterministic games for training
+- **Configurable AI parameters** — tune AI behavior via command line
+- **Battle data logging** — CSV logs of game state and AI decisions
+
+Training pipeline: [liquidwar5-ai-training](https://github.com/pandora-wolf-meow/liquidwar5-ai-training)
+
+### Headless Mode
+
+Run a game with no display at max speed, outputting results as CSV:
+
+```bash
+./src/liquidwar -dat ./data/liquidwar.dat -headless -seed 42
+```
+
+Output:
+```
+result,winner,ticks,team0_fighters,...,ai_candidates,ai_density_weight,...
+result,1,24000,3099,3221,48,284,202,496,10,5,50,100,50,20
+```
+
+Run 8 games in parallel (~7 seconds):
+```bash
+for i in $(seq 8); do
+    ./src/liquidwar -dat ./data/liquidwar.dat -headless -seed $i &
+done
+wait
+```
+
+### AI Parameters
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-ai-candidates N` | 10 | Target candidates to evaluate per decision |
+| `-ai-density-radius N` | 5 | Enemy density search radius (grid cells) |
+| `-ai-density-weight N` | 50 | Weight for enemy concentration in scoring |
+| `-ai-health-weight N` | 100 | Divisor for health factor in scoring |
+| `-ai-replan N` | 50 | Ticks between forced path replanning |
+| `-ai-retreat N` | 20 | Retreat if lost more than 1/N fighters |
+
+### Build
+
+```bash
+sudo apt-get install -y build-essential autoconf automake liballegro4-dev
+autoconf && ./configure && gmake
+```
+
 Status
 ------
 
