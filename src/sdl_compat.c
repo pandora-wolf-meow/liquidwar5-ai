@@ -668,10 +668,11 @@ set_gfx_mode (int card, int w, int h, int v_w, int v_h)
     }
   else
     {
+      /* Create window at 1.5x logical size for GPU-smoothed upscaling */
       lw_sdl_window = SDL_CreateWindow ("Liquid War",
                                         SDL_WINDOWPOS_CENTERED,
                                         SDL_WINDOWPOS_CENTERED,
-                                        w, h, flags);
+                                        w * 3 / 2, h * 3 / 2, flags);
       if (!lw_sdl_window)
         {
           snprintf (allegro_error, sizeof (allegro_error),

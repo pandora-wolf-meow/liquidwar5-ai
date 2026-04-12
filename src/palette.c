@@ -355,26 +355,13 @@ set_team_color (int teinte, int first, int num)
       /* t goes from 0.0 (darkest/weakest) to 1.0 (brightest/healthiest) */
       t = (float) i / (float) (num - 1);
 
-      /* Use a curve that keeps the mid-range more saturated:
-       * dark end is very dark, then ramps up with extra saturation,
-       * top end is the full team color with a bright highlight */
-      float curve = t * t;      /* darker darks */
-      float highlight = (t > 0.85f) ? (t - 0.85f) * 4.0f : 0.0f;
+      /* Quadratic ramp for deeper darks, pure saturated brights.
+       * No white blend - keeps colors vivid. */
+      float curve = t * t;
 
-      GLOBAL_PALETTE[first + i].r =
-        (int) (col_r * curve + highlight * (63 - col_r));
-      GLOBAL_PALETTE[first + i].g =
-        (int) (col_g * curve + highlight * (63 - col_g));
-      GLOBAL_PALETTE[first + i].b =
-        (int) (col_b * curve + highlight * (63 - col_b));
-
-      /* Clamp */
-      if (GLOBAL_PALETTE[first + i].r > 63)
-        GLOBAL_PALETTE[first + i].r = 63;
-      if (GLOBAL_PALETTE[first + i].g > 63)
-        GLOBAL_PALETTE[first + i].g = 63;
-      if (GLOBAL_PALETTE[first + i].b > 63)
-        GLOBAL_PALETTE[first + i].b = 63;
+      GLOBAL_PALETTE[first + i].r = (int) (col_r * curve);
+      GLOBAL_PALETTE[first + i].g = (int) (col_g * curve);
+      GLOBAL_PALETTE[first + i].b = (int) (col_b * curve);
     }
 }
 
