@@ -55,7 +55,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "base.h"
 

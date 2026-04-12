@@ -54,7 +54,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "capture.h"
 #include "viewport.h"

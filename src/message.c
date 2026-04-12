@@ -52,7 +52,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
-#include <allegro.h>
+#include "sdl_compat.h"
 #include <stdio.h>
 #include <string.h>
 

@@ -51,7 +51,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
-#include <allegro.h>
+#include "sdl_compat.h"
 #ifdef WIN32
 #include <winalleg.h>
 #endif

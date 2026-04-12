@@ -1,4 +1,4 @@
-#include <allegro.h>
+#include "sdl_compat.h"
 /* XPM */
 static const char *allegico_xpm[] = {
 /* columns rows colors chars-per-pixel */

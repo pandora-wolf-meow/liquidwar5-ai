@@ -77,6 +77,7 @@ OBJ_NAMES = \
 	about \
 	advanced \
 	alleg2 \
+	sdl_compat \
 	area \
 	army \
 	asm \
@@ -231,10 +232,10 @@ EXE_FILES = liquidwar liquidwar-server liquidwar-mapgen
 
 ifeq ($(STATIC),yes)
     LINK_OPTIONS = --static
-    EXTERN_LIBS = `allegro-config --static $(ALLEGRO_LIBRARY)` $(EFENCE_LIBRARY)
+    EXTERN_LIBS = `sdl2-config --libs` -lSDL2_image -lSDL2_mixer -lSDL2_ttf $(EFENCE_LIBRARY)
 else
     LINK_OPTIONS =
-    EXTERN_LIBS = `allegro-config --libs $(ALLEGRO_LIBRARY)` $(EFENCE_LIBRARY)
+    EXTERN_LIBS = `sdl2-config --libs` -lSDL2_image -lSDL2_mixer -lSDL2_ttf $(EFENCE_LIBRARY)
 endif
 
 CONFIG_OPTIONS = \

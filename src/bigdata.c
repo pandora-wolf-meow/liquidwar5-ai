@@ -53,7 +53,7 @@
 /*==================================================================*/
 
 #include <stdlib.h>
-#include <allegro.h>
+#include "sdl_compat.h"
 #include <string.h>
 
 #include "alleg2.h"
