@@ -380,38 +380,9 @@ lw_map_archive_raw_bmp (BITMAP * bmp, PALETTE pal, const char *filename)
 
   if (bmp)
     {
-      {
-        int dbg_light = 0, dbg_dark = 0, dbg_i;
-        for (dbg_i = 0; dbg_i < 256; ++dbg_i)
-          if (6 * pal[dbg_i].r + 3 * pal[dbg_i].g + pal[dbg_i].b > 315)
-            dbg_light++;
-          else
-            dbg_dark++;
-        fprintf (stderr, "MAP DEBUG PAL %s: light=%d dark=%d pal[0]=(%d,%d,%d) pal[255]=(%d,%d,%d)\n",
-                 filename, dbg_light, dbg_dark,
-                 pal[0].r, pal[0].g, pal[0].b,
-                 pal[255].r, pal[255].g, pal[255].b);
-      }
       sort_light_and_dark (bmp, pal);
-      {
-        int dbg_x, dbg_y, dbg_light = 0, dbg_dark = 0, dbg_other = 0;
-        for (dbg_y = 0; dbg_y < bmp->h; ++dbg_y)
-          for (dbg_x = 0; dbg_x < bmp->w; ++dbg_x)
-            {
-              int p = getpixel (bmp, dbg_x, dbg_y);
-              if (p == CONSIDERED_AS_LIGHT) dbg_light++;
-              else if (p == CONSIDERED_AS_DARK) dbg_dark++;
-              else dbg_other++;
-            }
-        fprintf (stderr, "MAP DEBUG SORT %s: light_px=%d dark_px=%d other=%d (total=%d)\n",
-                 filename, dbg_light, dbg_dark, dbg_other, bmp->w * bmp->h);
-      }
       sub_bmp = extract_significant_part (bmp);
-      if (!sub_bmp)
-        {
-          fprintf (stderr, "MAP DEBUG: extract_significant_part failed for %s (bmp %dx%d)\n",
-                   filename, bmp->w, bmp->h);
-        }
+      (void) 0; /* extract_significant_part may return NULL for invalid maps */
       if (sub_bmp)
         {
           w = sub_bmp->w;
@@ -419,25 +390,16 @@ lw_map_archive_raw_bmp (BITMAP * bmp, PALETTE pal, const char *filename)
           if (check_if_playable (sub_bmp))
             {
               temp = malloc_in_big_data_bottom (w * h + 1);
-              if (!temp)
-                fprintf (stderr, "MAP DEBUG: malloc_in_big_data_bottom failed for %s (%d bytes)\n",
-                         filename, w * h + 1);
+              (void) 0; /* malloc_in_big_data_bottom may fail */
               if (temp)
                 convert_to_buffer (sub_bmp, temp, &size, &bg_size);
             }
-          else
-            {
-              fprintf (stderr, "MAP DEBUG: check_if_playable failed for %s (%dx%d)\n",
-                       filename, w, h);
-            }
+          /* check_if_playable failed - map skipped */
           destroy_bitmap (sub_bmp);
         }
       destroy_bitmap (bmp);
     }
-  else
-    {
-      fprintf (stderr, "MAP DEBUG: bmp is NULL for %s\n", filename);
-    }
+  /* bmp was NULL - file could not be loaded */
 
   if (temp)
     {

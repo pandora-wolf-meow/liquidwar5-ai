@@ -2130,40 +2130,9 @@ void
 lw_sdl_present_screen (void)
 {
   SDL_Texture *tex;
-  static int debug_count = 0;
 
   if (!screen || !screen->sdl_surface || !lw_sdl_renderer)
     return;
-
-  /* Debug: check screen state every 60 frames */
-  if (debug_count % 60 == 0)
-    {
-      int dx, dy, nonzero = 0;
-      int has_palette = (screen->sdl_surface->format->palette != NULL);
-      int ncolors = has_palette ? screen->sdl_surface->format->palette->ncolors : 0;
-      int pal_nonblack = 0;
-
-      for (dy = 0; dy < screen->h; dy += 10)
-        for (dx = 0; dx < screen->w; dx += 10)
-          if (getpixel (screen, dx, dy) != 0)
-            nonzero++;
-
-      if (has_palette)
-        {
-          int pi;
-          for (pi = 0; pi < ncolors; ++pi)
-            if (screen->sdl_surface->format->palette->colors[pi].r
-                || screen->sdl_surface->format->palette->colors[pi].g
-                || screen->sdl_surface->format->palette->colors[pi].b)
-              pal_nonblack++;
-        }
-
-      fprintf (stderr, "PRESENT #%d: %dx%d bpp=%d nonzero_px=%d palette=%d ncolors=%d pal_nonblack=%d\n",
-               debug_count, screen->w, screen->h,
-               screen->sdl_surface->format->BitsPerPixel,
-               nonzero, has_palette, ncolors, pal_nonblack);
-    }
-  debug_count++;
 
   tex = SDL_CreateTextureFromSurface (lw_sdl_renderer, screen->sdl_surface);
   if (tex)
@@ -2268,6 +2237,8 @@ clear_keybuf (void)
 int
 gui_mouse_b (void)
 {
+  lw_sdl_pump_events ();
+  lw_sdl_present_screen ();
   return mouse_b;
 }
 
