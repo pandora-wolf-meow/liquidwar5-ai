@@ -1966,7 +1966,7 @@ d_clear_proc (int msg, DIALOG * d, int c)
   return D_O_K;
 }
 
-int d_box_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_box_proc (int msg, DIALOG * d, int c) { (void) c; if (msg == MSG_DRAW && screen) { rectfill(screen, d->x, d->y, d->x+d->w-1, d->y+d->h-1, d->bg); rect(screen, d->x, d->y, d->x+d->w-1, d->y+d->h-1, d->fg); } return D_O_K; }
 int d_shadow_box_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
 int d_bitmap_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
 int d_icon_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
@@ -2206,8 +2206,31 @@ lw_sdl_present_screen (void)
   int dst_pitch;
   SDL_Palette *pal;
 
+  static Uint32 lw_last_snap = 0;
+  static int lw_snap_id = 0;
+
   if (!screen || !screen->sdl_surface || !lw_sdl_renderer)
     return;
+
+  /* Periodic screenshot dump for debugging (every 2s, max 30) */
+  {
+    Uint32 now = SDL_GetTicks ();
+    if (lw_snap_id < 30 && now - lw_last_snap > 2000)
+      {
+        char path[128];
+        SDL_Surface *snap =
+          SDL_ConvertSurfaceFormat (screen->sdl_surface,
+                                   SDL_PIXELFORMAT_RGB24, 0);
+        if (snap)
+          {
+            snprintf (path, sizeof (path), "/tmp/lw_frames/f%03d.bmp",
+                      lw_snap_id++);
+            SDL_SaveBMP (snap, path);
+            SDL_FreeSurface (snap);
+          }
+        lw_last_snap = now;
+      }
+  }
 
   /* Recreate texture and conversion surface if screen size changed */
   if (!lw_screen_texture || lw_screen_tex_w != screen->w
