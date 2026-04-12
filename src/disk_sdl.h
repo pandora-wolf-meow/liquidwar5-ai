@@ -15,5 +15,7 @@ int lw_disk_sdl_load_sfx (SAMPLE ** samples, int max_samples,
 int lw_disk_sdl_load_music (MIDI ** music, int max_music);
 BITMAP *lw_disk_sdl_load_back (void);
 BITMAP *lw_disk_sdl_load_font_bitmap (const char *name);
+int lw_disk_sdl_load_textures (void **textures, int max_textures,
+                                const char *subdir);
 
 #endif

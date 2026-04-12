@@ -392,18 +392,28 @@ load_dat (void)
       display_success (n > 0);
     }
 
-  /* Textures - skip for now, use mono colors */
+  /* Load textures from PCX files */
   if (STARTUP_TEXTURE_STATE)
     {
       log_print_str ("Loading textures");
       log_flush ();
-      /* TODO: load raw texture files from data/texture/ */
-      display_success (0);
+      n =
+        lw_disk_sdl_load_textures (RAW_TEXTURE, RAW_TEXTURE_MAX_NUMBER,
+                                    "texture");
+      RAW_TEXTURE_NUMBER = n;
+      if (n > 0)
+        LOADED_TEXTURE = 1;
+      display_success (n > 0);
 
       log_print_str ("Loading map textures");
       log_flush ();
-      /* TODO: load raw maptex files from data/maptex/ */
-      display_success (0);
+      n =
+        lw_disk_sdl_load_textures (RAW_MAPTEX, RAW_TEXTURE_MAX_NUMBER,
+                                    "maptex");
+      RAW_MAPTEX_NUMBER = n;
+      if (n > 0)
+        LOADED_MAPTEX = 1;
+      display_success (n > 0);
     }
 
   /* Load water sounds */

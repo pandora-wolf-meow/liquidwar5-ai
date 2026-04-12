@@ -10,6 +10,8 @@
 
 #include "sdl_compat.h"
 #include "disk_sdl.h"
+#include "map.h"
+#include "texture.h"
 #include "log.h"
 
 static void
@@ -74,7 +76,7 @@ lw_disk_sdl_load_maps (void **maps, int max_maps)
     {
       char *ext;
       char file_path[1280];
-      SDL_Surface *surface;
+      void *raw;
 
       ext = strrchr (entry->d_name, '.');
       if (!ext)
@@ -84,11 +86,10 @@ lw_disk_sdl_load_maps (void **maps, int max_maps)
 
       snprintf (file_path, sizeof (file_path), "%s/%s", dir_path,
                 entry->d_name);
-      surface = IMG_Load (file_path);
-      if (surface)
+      raw = lw_map_archive_raw (file_path);
+      if (raw)
         {
-          /* Store the raw surface data pointer - the game expects raw bitmap data */
-          maps[count] = surface;
+          maps[count] = raw;
           count++;
         }
     }
@@ -176,6 +177,50 @@ lw_disk_sdl_load_music (MIDI ** music, int max_music)
       if (mus)
         {
           music[count] = (MIDI *) mus;
+          count++;
+        }
+    }
+
+  closedir (d);
+  return count;
+}
+
+/*==================================================================*/
+/* Load textures (PCX files from data/texture/ or data/maptex/)     */
+/*==================================================================*/
+
+int
+lw_disk_sdl_load_textures (void **textures, int max_textures,
+                            const char *subdir)
+{
+  char dir_path[1024];
+  DIR *d;
+  struct dirent *entry;
+  int count = 0;
+
+  build_subdir_path (dir_path, sizeof (dir_path), subdir);
+  d = opendir (dir_path);
+  if (!d)
+    return 0;
+
+  while ((entry = readdir (d)) != NULL && count < max_textures)
+    {
+      char *ext;
+      char file_path[1280];
+      void *raw;
+
+      ext = strrchr (entry->d_name, '.');
+      if (!ext)
+        continue;
+      if (strcasecmp (ext, ".pcx") != 0 && strcasecmp (ext, ".bmp") != 0)
+        continue;
+
+      snprintf (file_path, sizeof (file_path), "%s/%s", dir_path,
+                entry->d_name);
+      raw = lw_texture_archive_raw (file_path);
+      if (raw)
+        {
+          textures[count] = raw;
           count++;
         }
     }
