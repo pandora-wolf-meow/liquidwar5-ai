@@ -513,7 +513,7 @@ blank_round (void)
 /*
  * spawn particles at battle frontlines where different teams meet
  */
-static void
+static void __attribute__((unused))
 spawn_battle_particles (void)
 {
   int x, y, step;
@@ -579,10 +579,9 @@ fill_next_screen (void)
        */
       display_area ();
       /*
-       * draw particles on top of the game area
-       * particles are in game-area coordinates, scale to viewport
+       * update and draw particles on top of the game area
+       * particles spawn directly from fighter.c combat events
        */
-      spawn_battle_particles ();
       lw_particles_update (0.016f);
       if (NEXT_SCREEN && CURRENT_AREA_W > 0 && CURRENT_AREA_H > 0)
         lw_particles_draw_scaled (NEXT_SCREEN,

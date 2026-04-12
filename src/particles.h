@@ -7,7 +7,7 @@
 
 #include "sdl_compat.h"
 
-#define LW_MAX_PARTICLES 512
+#define LW_MAX_PARTICLES 2048
 
 typedef struct
 {
