@@ -579,33 +579,19 @@ logic (void)
    * the profile module enables CPU time tracking, so that the player
    * can now how much time is spent on various tasks
    */
-  start_profile (SPREAD_PROFILE);
+  if (!STARTUP_HEADLESS)
+    start_profile (SPREAD_PROFILE);
   if (!PAUSE_ON)
-    {
-      /*
-       * spreads the gradient, ie calculates in the game area how far
-       * each point is from the cursors, this information depends
-       * on where the cursors are, this information being given
-       * by apply_all_cursor
-       */
-      spread_single_gradient ();
-    }
-  /*
-   * this call ends the time tracking associated to the spread function
-   */
-  stop_profile (SPREAD_PROFILE);
+    spread_single_gradient ();
+  if (!STARTUP_HEADLESS)
+    stop_profile (SPREAD_PROFILE);
 
-  start_profile (MOVE_PROFILE);
+  if (!STARTUP_HEADLESS)
+    start_profile (MOVE_PROFILE);
   if (!PAUSE_ON)
-    {
-      /*
-       * now we move the fighters, ie each fighter of each team
-       * will either move, attack his neighbor, die...
-       */
-      move_fighters ();
-    }
-
-  stop_profile (MOVE_PROFILE);
+    move_fighters ();
+  if (!STARTUP_HEADLESS)
+    stop_profile (MOVE_PROFILE);
 
   if (!PAUSE_ON)
     {

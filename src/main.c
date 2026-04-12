@@ -171,6 +171,11 @@ main (int argc, char **argv)
             CONFIG_CONTROL_TYPE[i] =
               (i < num_teams) ? CONFIG_CONTROL_TYPE_CPU : CONFIG_CONTROL_TYPE_OFF;
 
+          if (exist_argument_value ("map"))
+            CONFIG_LEVEL_MAP = get_argument_int ("map") % RAW_MAP_NUMBER;
+          else
+            CONFIG_LEVEL_MAP = random () % RAW_MAP_NUMBER;
+
           lw_ai_init_params ();
           if (exist_argument_value ("ai-params-file"))
             lw_ai_load_params_file (get_argument_str ("ai-params-file"));
