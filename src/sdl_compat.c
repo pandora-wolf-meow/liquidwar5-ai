@@ -1729,72 +1729,121 @@ unload_datafile_object (DATAFILE * dat)
 int
 d_button_proc (int msg, DIALOG * d, int c)
 {
-  (void) msg;
-  (void) d;
   (void) c;
+  if (msg == MSG_DRAW && screen)
+    {
+      rectfill (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1,
+                d->bg);
+      rect (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1, d->fg);
+      if (d->dp && font)
+        {
+          textout_centre_ex (screen, font, (const char *) d->dp,
+                             d->x + d->w / 2,
+                             d->y + d->h / 2 - text_height (font) / 2,
+                             d->fg, -1);
+        }
+    }
   return D_O_K;
 }
 
 int
 d_text_proc (int msg, DIALOG * d, int c)
 {
-  (void) msg;
-  (void) d;
   (void) c;
+  if (msg == MSG_DRAW && screen && d->dp && font)
+    {
+      textout_ex (screen, font, (const char *) d->dp,
+                  d->x, d->y, d->fg, d->bg);
+    }
   return D_O_K;
 }
 
 int
 d_ctext_proc (int msg, DIALOG * d, int c)
 {
-  (void) msg;
-  (void) d;
   (void) c;
+  if (msg == MSG_DRAW && screen && d->dp && font)
+    {
+      textout_centre_ex (screen, font, (const char *) d->dp,
+                         d->x + d->w / 2, d->y, d->fg, d->bg);
+    }
   return D_O_K;
 }
 
 int
 d_edit_proc (int msg, DIALOG * d, int c)
 {
-  (void) msg;
-  (void) d;
   (void) c;
+  if (msg == MSG_DRAW && screen)
+    {
+      rectfill (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1,
+                d->bg);
+      rect (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1, d->fg);
+      if (d->dp && font)
+        textout_ex (screen, font, (const char *) d->dp,
+                    d->x + 2, d->y + 2, d->fg, -1);
+    }
   return D_O_K;
 }
 
 int
 d_list_proc (int msg, DIALOG * d, int c)
 {
-  (void) msg;
-  (void) d;
   (void) c;
+  if (msg == MSG_DRAW && screen)
+    {
+      rectfill (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1,
+                d->bg);
+      rect (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1, d->fg);
+    }
   return D_O_K;
 }
 
 int
 d_slider_proc (int msg, DIALOG * d, int c)
 {
-  (void) msg;
-  (void) d;
   (void) c;
+  if (msg == MSG_DRAW && screen)
+    {
+      int pos;
+      rectfill (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1,
+                d->bg);
+      rect (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1, d->fg);
+      /* Draw slider position */
+      if (d->d1 > 0)
+        {
+          pos = d->x + (d->d2 * (d->w - 4)) / d->d1 + 2;
+          rectfill (screen, pos - 2, d->y + 1, pos + 2,
+                    d->y + d->h - 2, d->fg);
+        }
+    }
   return D_O_K;
 }
 
 int
 d_textbox_proc (int msg, DIALOG * d, int c)
 {
-  (void) msg;
-  (void) d;
   (void) c;
+  if (msg == MSG_DRAW && screen)
+    {
+      rectfill (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1,
+                d->bg);
+      if (d->dp && font)
+        textout_ex (screen, font, (const char *) d->dp,
+                    d->x + 4, d->y + 4, d->fg, -1);
+    }
   return D_O_K;
 }
 
 int
 d_clear_proc (int msg, DIALOG * d, int c)
 {
-  (void) msg;
-  (void) d;
   (void) c;
+  if (msg == MSG_DRAW && screen)
+    {
+      rectfill (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1,
+                d->bg);
+    }
   return D_O_K;
 }
 
@@ -1808,15 +1857,65 @@ int d_radio_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; 
 int d_menu_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
 int d_yield_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
 
+static void
+lw_dialog_draw_all (DIALOG * d)
+{
+  int i;
+  for (i = 0; d[i].proc; ++i)
+    {
+      if (!(d[i].flags & D_HIDDEN))
+        d[i].proc (MSG_DRAW, &d[i], 0);
+    }
+  lw_sdl_present_screen ();
+}
+
+static int
+lw_dialog_find_click (DIALOG * d, int mx, int my)
+{
+  int i;
+  for (i = 0; d[i].proc; ++i)
+    {
+      if ((d[i].flags & D_HIDDEN) || (d[i].flags & D_DISABLED))
+        continue;
+      if (mx >= d[i].x && mx < d[i].x + d[i].w
+          && my >= d[i].y && my < d[i].y + d[i].h)
+        return i;
+    }
+  return -1;
+}
+
+static int
+lw_dialog_find_key (DIALOG * d, int key_char)
+{
+  int i;
+  for (i = 0; d[i].proc; ++i)
+    {
+      if (d[i].key && d[i].key == key_char && (d[i].flags & D_EXIT_FLAG))
+        return i;
+    }
+  return -1;
+}
+
 DIALOG_PLAYER *
 init_dialog (DIALOG * d, int focus)
 {
   DIALOG_PLAYER *player;
-  (void) focus;
+  int i;
 
   player = (DIALOG_PLAYER *) calloc (1, sizeof (DIALOG_PLAYER));
   if (player)
-    player->dialog = d;
+    {
+      player->dialog = d;
+      player->focus = focus;
+      player->obj = -1;
+
+      /* Send MSG_START to all elements */
+      for (i = 0; d[i].proc; ++i)
+        d[i].proc (MSG_START, &d[i], 0);
+
+      /* Initial draw */
+      lw_dialog_draw_all (d);
+    }
 
   return player;
 }
@@ -1824,17 +1923,97 @@ init_dialog (DIALOG * d, int focus)
 int
 update_dialog (DIALOG_PLAYER * player)
 {
-  (void) player;
-  return 1;                     /* return non-zero to signal "dialog still active" */
+  DIALOG *d;
+  int i, clicked;
+
+  if (!player || !player->dialog)
+    return 0;
+
+  d = player->dialog;
+
+  /* Pump events */
+  lw_sdl_pump_events ();
+
+  /* Check for keyboard input */
+  for (i = 0; i < KEY_MAX; ++i)
+    {
+      if (key[i])
+        {
+          int key_char = 0;
+
+          /* Map common scancodes to ASCII for key matching */
+          if (i >= SDL_SCANCODE_A && i <= SDL_SCANCODE_Z)
+            key_char = 'a' + (i - SDL_SCANCODE_A);
+          else if (i == SDL_SCANCODE_ESCAPE)
+            key_char = 27;
+          else if (i == SDL_SCANCODE_RETURN)
+            key_char = 13;
+
+          if (key_char)
+            {
+              int idx = lw_dialog_find_key (d, key_char);
+              if (idx >= 0)
+                {
+                  player->obj = idx;
+                  key[i] = 0;
+                  return 0;     /* dialog done */
+                }
+            }
+
+          /* ESC closes dialog returning first element index */
+          if (i == SDL_SCANCODE_ESCAPE)
+            {
+              player->obj = 0;
+              key[i] = 0;
+              return 0;
+            }
+        }
+    }
+
+  /* Check for mouse click */
+  if (mouse_b & 1)
+    {
+      clicked = lw_dialog_find_click (d, mouse_x, mouse_y);
+      if (clicked >= 0)
+        {
+          int result = d[clicked].proc (MSG_CLICK, &d[clicked], 0);
+          if ((d[clicked].flags & D_EXIT_FLAG) || (result & D_CLOSE))
+            {
+              player->obj = clicked;
+              /* Wait for mouse release */
+              while (mouse_b & 1)
+                lw_sdl_pump_events ();
+              return 0;
+            }
+        }
+      /* Wait for mouse release to avoid repeated clicks */
+      while (mouse_b & 1)
+        lw_sdl_pump_events ();
+    }
+
+  /* Redraw */
+  lw_dialog_draw_all (d);
+
+  /* Small delay to avoid busy loop */
+  SDL_Delay (16);
+
+  return 1;                     /* dialog still active */
 }
 
 int
 shutdown_dialog (DIALOG_PLAYER * player)
 {
-  int ret = 0;
+  int ret = -1;
+  int i;
+
   if (player)
     {
       ret = player->obj;
+      if (player->dialog)
+        {
+          for (i = 0; player->dialog[i].proc; ++i)
+            player->dialog[i].proc (MSG_END, &player->dialog[i], 0);
+        }
       free (player);
     }
   return ret;
@@ -1843,9 +2022,14 @@ shutdown_dialog (DIALOG_PLAYER * player)
 int
 do_dialog (DIALOG * d, int focus)
 {
-  (void) d;
-  (void) focus;
-  return -1;
+  DIALOG_PLAYER *player = init_dialog (d, focus);
+  if (!player)
+    return -1;
+
+  while (update_dialog (player))
+    ;
+
+  return shutdown_dialog (player);
 }
 
 int

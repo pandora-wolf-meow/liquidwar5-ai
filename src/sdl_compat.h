@@ -201,7 +201,7 @@ typedef struct DIALOG_PLAYER
 #define D_REDRAWME  16
 #define D_GOTFOCUS  32
 #define D_GOTMOUSE  64
-#define D_EXIT      128
+#define D_EXIT      1
 
 /* Dialog flags */
 #define D_EXIT_FLAG    1
