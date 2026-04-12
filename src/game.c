@@ -472,9 +472,10 @@ blank_round (void)
        */
       init_distorsion_displayer ();
       /*
-       * prepares the basic layer for the first buffer
+       * prepares the basic layer - clear to dark background
        */
-      display_back_image ();
+      if (screen)
+        clear_to_color (screen, MENU_BG);
       rect_for_viewport ();
       /*
        * displays the map in the previously defined layer
@@ -489,7 +490,8 @@ blank_round (void)
       /*
        * prepares the basic layer for the second buffer
        */
-      display_back_image ();
+      if (screen)
+        clear_to_color (screen, MENU_BG);
       rect_for_viewport ();
       /*
        * clean up message queue
@@ -783,6 +785,13 @@ game (void)
    * and he it can start recording stuff
    */
   start_play_time ();
+  /*
+   * Clear screen to dark background for clean game display.
+   * The menu background image uses palette entries that get
+   * overwritten by team colors, so we fill with MENU_BG instead.
+   */
+  if (screen)
+    clear_to_color (screen, MENU_BG);
   /*
    * initialize particle effects
    */
