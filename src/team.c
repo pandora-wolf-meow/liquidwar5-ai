@@ -241,10 +241,19 @@ suppress_conflicting_color (int color, int replacement_color)
 static char *
 get_key_name (int num)
 {
-  if (MENU_KEY_NAMES[num] != NULL)
+  const char *name;
+
+  /* Use SDL scancode name for correct display */
+  name = SDL_GetScancodeName ((SDL_Scancode) num);
+  if (name && name[0])
+    return (char *) name;
+
+  if (num >= 0
+      && num < (int) (sizeof (MENU_KEY_NAMES) / sizeof (MENU_KEY_NAMES[0]))
+      && MENU_KEY_NAMES[num] != NULL)
     return MENU_KEY_NAMES[num];
-  else
-    return "None";
+
+  return "None";
 }
 
 /*------------------------------------------------------------------*/
