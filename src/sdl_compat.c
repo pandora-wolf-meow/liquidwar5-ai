@@ -640,7 +640,7 @@ set_gfx_mode (int card, int w, int h, int v_w, int v_h)
       return 0;
     }
 
-  flags = SDL_WINDOW_SHOWN;
+  flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
   if (card == GFX_AUTODETECT_FULLSCREEN || card == GFX_MODEX
       || card == GFX_VESA2L || card == GFX_DIRECTX || card == GFX_GP2X)
     {
@@ -694,6 +694,9 @@ set_gfx_mode (int card, int w, int h, int v_w, int v_h)
   SCREEN_W = w;
   SCREEN_H = h;
   VIRTUAL_H = v_h;
+
+  /* Set logical size so SDL maps mouse coordinates correctly on resize */
+  SDL_RenderSetLogicalSize (lw_sdl_renderer, w, h);
 
   /* Create the screen bitmap */
   if (screen)
