@@ -1991,16 +1991,28 @@ lw_dialog_draw_all (DIALOG * d)
 static int
 lw_dialog_find_click (DIALOG * d, int mx, int my)
 {
-  int i;
+  int i, best = -1;
+  int best_area = 0x7FFFFFFF;
+
+  /* Find the smallest (most specific) element under the cursor.
+   * This ensures inner buttons take priority over outer containers. */
   for (i = 0; d[i].proc; ++i)
     {
+      int area;
       if ((d[i].flags & D_HIDDEN) || (d[i].flags & D_DISABLED))
         continue;
       if (mx >= d[i].x && mx < d[i].x + d[i].w
           && my >= d[i].y && my < d[i].y + d[i].h)
-        return i;
+        {
+          area = d[i].w * d[i].h;
+          if (area < best_area)
+            {
+              best_area = area;
+              best = i;
+            }
+        }
     }
-  return -1;
+  return best;
 }
 
 static int
@@ -2470,16 +2482,24 @@ lw_sdl_pump_events (void)
           break;
 
         case SDL_MOUSEMOTION:
-          mouse_x = event.motion.x;
-          mouse_y = event.motion.y;
-          break;
-
         case SDL_MOUSEBUTTONDOWN:
-          mouse_b |= (1 << (event.button.button - 1));
-          break;
-
         case SDL_MOUSEBUTTONUP:
-          mouse_b &= ~(1 << (event.button.button - 1));
+          /* Use SDL logical coordinate mapping for mouse position */
+          {
+            float fx, fy;
+            SDL_RenderWindowToLogical (lw_sdl_renderer,
+                                       event.type == SDL_MOUSEMOTION
+                                       ? event.motion.x : event.button.x,
+                                       event.type == SDL_MOUSEMOTION
+                                       ? event.motion.y : event.button.y,
+                                       &fx, &fy);
+            mouse_x = (int) fx;
+            mouse_y = (int) fy;
+          }
+          if (event.type == SDL_MOUSEBUTTONDOWN)
+            mouse_b |= (1 << (event.button.button - 1));
+          else if (event.type == SDL_MOUSEBUTTONUP)
+            mouse_b &= ~(1 << (event.button.button - 1));
           break;
 
         default:
