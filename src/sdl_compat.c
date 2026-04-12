@@ -1840,15 +1840,26 @@ d_button_proc (int msg, DIALOG * d, int c)
   (void) c;
   if (msg == MSG_DRAW && screen)
     {
+      int hover = (d->flags & D_GOTMOUSE_FLAG) ? 1 : 0;
+      int bg_col = d->bg;
+      int fg_col = d->fg;
+
+      /* Brighten on hover */
+      if (hover)
+        {
+          bg_col = d->fg;
+          fg_col = d->bg;
+        }
+
       rectfill (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1,
-                d->bg);
-      rect (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1, d->fg);
+                bg_col);
+      rect (screen, d->x, d->y, d->x + d->w - 1, d->y + d->h - 1, fg_col);
       if (d->dp && font)
         {
           textout_centre_ex (screen, font, (const char *) d->dp,
                              d->x + d->w / 2,
                              d->y + d->h / 2 - text_height (font) / 2,
-                             d->fg, -1);
+                             fg_col, -1);
         }
     }
   return D_O_K;
@@ -2098,6 +2109,18 @@ update_dialog (DIALOG_PLAYER * player)
       while (mouse_b & 1)
         lw_sdl_pump_events ();
     }
+
+  /* Update hover state */
+  {
+    int hi, hovered = lw_dialog_find_click (d, mouse_x, mouse_y);
+    for (hi = 0; d[hi].proc; ++hi)
+      {
+        if (hi == hovered)
+          d[hi].flags |= D_GOTMOUSE_FLAG;
+        else
+          d[hi].flags &= ~D_GOTMOUSE_FLAG;
+      }
+  }
 
   /* Redraw */
   lw_dialog_draw_all (d);

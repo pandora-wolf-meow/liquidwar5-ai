@@ -410,13 +410,59 @@ load_dat (void)
                   GLOBAL_PALETTE[pi].b = sp->colors[pi].b / 4;
                 }
             }
-          /* Preserve menu FG/BG colors */
+          /* Remap background pixels away from palette entries 0-17
+           * (reserved for menu UI). Find the closest color in entries
+           * 18-255 for each pixel that uses 0-17. */
+          {
+            int bx, by, pi;
+            unsigned char remap[18];
+            for (pi = 0; pi < 18; ++pi)
+              {
+                /* Find closest color in entries 18-255 */
+                int best = 18, best_dist = 0x7FFFFFFF;
+                int pr = GLOBAL_PALETTE[pi].r;
+                int pg = GLOBAL_PALETTE[pi].g;
+                int pb = GLOBAL_PALETTE[pi].b;
+                int ci;
+                for (ci = 18; ci < 256; ++ci)
+                  {
+                    int dr = GLOBAL_PALETTE[ci].r - pr;
+                    int dg = GLOBAL_PALETTE[ci].g - pg;
+                    int db = GLOBAL_PALETTE[ci].b - pb;
+                    int dist = dr * dr + dg * dg + db * db;
+                    if (dist < best_dist)
+                      {
+                        best_dist = dist;
+                        best = ci;
+                      }
+                  }
+                remap[pi] = best;
+              }
+            for (by = 0; by < BACK_IMAGE->h; ++by)
+              for (bx = 0; bx < BACK_IMAGE->w; ++bx)
+                {
+                  int px = getpixel (BACK_IMAGE, bx, by);
+                  if (px < 18)
+                    putpixel (BACK_IMAGE, bx, by, remap[px]);
+                }
+          }
+          /* Now set menu palette entries */
           GLOBAL_PALETTE[MENU_BG].r = 0;
           GLOBAL_PALETTE[MENU_BG].g = 0;
           GLOBAL_PALETTE[MENU_BG].b = 10;
           GLOBAL_PALETTE[MENU_FG].r = 63;
           GLOBAL_PALETTE[MENU_FG].g = 63;
           GLOBAL_PALETTE[MENU_FG].b = 63;
+          /* Grayscale ramp for UI elements */
+          {
+            int gi;
+            for (gi = 1; gi <= 15; ++gi)
+              {
+                GLOBAL_PALETTE[gi].r = gi * 4;
+                GLOBAL_PALETTE[gi].g = gi * 4;
+                GLOBAL_PALETTE[gi].b = gi * 4;
+              }
+          }
           LOADED_BACK = 1;
         }
       else
