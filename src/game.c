@@ -52,6 +52,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
+#include <stdio.h>
 #include <stdlib.h>
 #ifdef UNIX
 #include <unistd.h>
@@ -726,141 +727,107 @@ game (void)
   int last_logic_time = get_ticker ();
   int lr;
 
-  /*
-   * we initialize the time module telling him that now it's 0
-   * and he it can start recording stuff
-   */
   start_play_time ();
-  /*
-   * resets the secret code sequences
-   */
-  watchdog_reset ();
-  reset_code ();
-  /*
-   * resets input buffers and control interfaces
-   */
-  lw_mouse_reset_control ();
+
+  if (!STARTUP_HEADLESS)
+    {
+      watchdog_reset ();
+      reset_code ();
+      lw_mouse_reset_control ();
+    }
   reset_computer_path ();
-  /*
-   * resets profile information, so that they are not affected
-   * by previous games
-   */
   reset_all_profile ();
 
-  /*
-   * everything's ready, POOOOOOOOOT the game starts and you hear it
-   */
-  play_go ();
+  if (!STARTUP_HEADLESS)
+    play_go ();
 
-  if (1 /*!init_distorsion_displayer() */ )
+  if (STARTUP_HEADLESS)
     {
       /*
-       * so we loop (almost) for ever
-       * execptions are
-       * - we have detected a key press on ESCAPE
-       * - there are less than 2 teams playing, ie there's a winner
-       * - the game time is elapsed
+       * Headless mode: run pure logic at max speed, no display or timing.
        */
+      while ((PLAYING_TEAMS >= 2) && (TIME_LEFT > 0))
+        {
+          logic ();
+          update_play_time ();
+        }
+    }
+  else if (1)
+    {
       while ((!WATCHDOG_SCANCODE[KEY_ESC])
              && (PLAYING_TEAMS >= 2)
              && (TIME_LEFT > 0) && (!LW_NETWORK_ERROR_DETECTED))
         {
-          /*
-           * global time checking
-           */
           start_profile (GLOBAL_PROFILE);
 
-          /*
-           * will contain how mush called to logic have been performed
-           */
           lr = 0;
           do
             {
-              /*
-               * we call logic, calculates stuff, move players etc...
-               */
               logic ();
 
-              /*
-               * Now we decide to go idel if it happens that the computer
-               * is calculating this "too fast". This will enable people
-               * too play Liquid War even on a very very fast machine
-               */
               while (get_ticker () < last_logic_time
                      + LOGIC_DELAY_MIN[CONFIG_ROUNDS_PER_SEC_LIMIT])
                 {
 #ifdef UNIX
-                  /*
-                   * The usleep calls prevents the game from eating 100% of the
-                   * CPU time on UNIX platforms.
-                   */
                   usleep (1000);
 #else
-                  /*
-                   * Rest does not seem to spare CPU time, but at least it
-                   * slows the game down
-                   */
                   rest (1);
 #endif
-                  //yield_timeslice (); deprecated
                 }
               last_logic_time = get_ticker ();
 
               lr++;
             }
           while
-            /*
-             * if CONFIG_FPS_LIMIT is 0 we stop right away, ie
-             * there will be one logic() operation for each display()
-             * if it is 1, we keep going until we exceed the
-             * CONFIG_FPS_LIMIT value. this way we avoid drawing 
-             * 300 frames / second, which is useless
-             * this method speeds the game on powerfull machines
-             * for one can limit the display to 20 frames / seconds
-             * and keep the rest of the CPU for calls to logic()
-             */
             (CONFIG_FRAMES_PER_SEC_LIMIT
              && (get_ticker () < last_display_time
                  + DISPLAY_DELAY_MIN[CONFIG_FRAMES_PER_SEC_LIMIT]));
-          /*
-           * tells the profile module about how much logic operations
-           * have been done for this display
-           */
+
           update_logic_rate (lr);
-
-          /*
-           * we get the information "when has the last call to display() 
-           * been done"
-           */
           last_display_time = get_ticker ();
-
-          /*
-           * now we really display stuff, (takes time...)
-           */
           display ();
-
-          /*
-           * Now we check if the "Close" button has been clicked
-           */
           my_exit_poll ();
-
           stop_profile (GLOBAL_PROFILE);
         }
     }
-  /*
-   * flush battle data logs
-   */
+
   close_computer_path ();
 
   /*
-   * cleans up the double buffer system
+   * Output game results as CSV to stdout for batch analysis.
    */
-  last_flip ();
+  if (STARTUP_HEADLESS)
+    {
+      int i;
+      printf ("result,winner,ticks");
+      for (i = 0; i < NB_TEAMS; i++)
+        printf (",team%d_fighters", i);
+      printf ("\n");
 
-  /*
-   * empties the key buffer
-   */
-  clear_keybuf ();
+      /* Find the winning team (most fighters remaining) */
+      {
+        int winner = -1;
+        int max_fighters = 0;
+        for (i = 0; i < NB_TEAMS; i++)
+          {
+            if (ACTIVE_FIGHTERS[i] > max_fighters)
+              {
+                max_fighters = ACTIVE_FIGHTERS[i];
+                winner = i;
+              }
+          }
+        printf ("result,%d,%d", winner, GLOBAL_CLOCK);
+        for (i = 0; i < NB_TEAMS; i++)
+          printf (",%d", ACTIVE_FIGHTERS[i]);
+        printf ("\n");
+      }
+      fflush (stdout);
+    }
+  else
+    {
+      last_flip ();
+      clear_keybuf ();
+    }
 
   return retour;
 }

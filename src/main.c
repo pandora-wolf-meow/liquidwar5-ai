@@ -57,6 +57,8 @@
 #include <dos.h>
 #endif
 
+#include <stdio.h>
+
 #include "bigdata.h"
 #include "config.h"
 #include "disk.h"
@@ -66,6 +68,8 @@
 #include "menu.h"
 #include "lw6.h"
 #include "parser.h"
+#include "play.h"
+#include "random.h"
 #include "sound.h"
 #include "startup.h"
 #include "basicopt.h"
@@ -145,16 +149,33 @@ main (int argc, char **argv)
 
       check_free_memory ();
 
-      start_graphic ();
-      start_water ();
-      if (CONFIG_LW6_ADVERTISING_DONE || CONFIG_LW6_ADVERTISING_SKIP)
+      if (STARTUP_HEADLESS)
         {
-          main_menu (1);
+          int i;
+
+          if (STARTUP_SEED >= 0)
+            srandom (STARTUP_SEED);
+
+          for (i = 0; i < NB_TEAMS; i++)
+            CONFIG_CONTROL_TYPE[i] = CONFIG_CONTROL_TYPE_CPU;
+          CONFIG_CONTROL_TYPE[0] = CONFIG_CONTROL_TYPE_CPU;
+          CONFIG_CONTROL_TYPE[1] = CONFIG_CONTROL_TYPE_CPU;
+
+          play_sequence ();
         }
       else
         {
-          CONFIG_LW6_ADVERTISING_DONE = lw6_advertise_menu (1);
-          main_menu (0);
+          start_graphic ();
+          start_water ();
+          if (CONFIG_LW6_ADVERTISING_DONE || CONFIG_LW6_ADVERTISING_SKIP)
+            {
+              main_menu (1);
+            }
+          else
+            {
+              CONFIG_LW6_ADVERTISING_DONE = lw6_advertise_menu (1);
+              main_menu (0);
+            }
         }
 
       my_exit (EXIT_CODE_OK);

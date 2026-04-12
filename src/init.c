@@ -187,15 +187,22 @@ init_all ()
           display_success (0);
         }
 
-      log_print_str ("Installing mouse");
-      mouse = install_mouse () != -1;
-      if (mouse)
+      if (!STARTUP_HEADLESS)
         {
-          display_success_driver ((char *) mouse_driver->ascii_name);
+          log_print_str ("Installing mouse");
+          mouse = install_mouse () != -1;
+          if (mouse)
+            {
+              display_success_driver ((char *) mouse_driver->ascii_name);
+            }
+          else
+            {
+              display_success (0);
+            }
         }
       else
         {
-          display_success (0);
+          mouse = 1;
         }
 
       if (STARTUP_DIGI_CARD != DIGI_NONE || STARTUP_MIDI_CARD != MIDI_NONE)

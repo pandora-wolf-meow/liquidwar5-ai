@@ -55,6 +55,7 @@
 #include "code.h"
 #include "config.h"
 #include "sound.h"
+#include "startup.h"
 #include "ticker.h"
 #include "lwtime.h"
 
@@ -91,6 +92,19 @@ int GLOBAL_CLOCK = 0;
 void
 update_play_time (void)
 {
+  if (STARTUP_HEADLESS)
+    {
+      /*
+       * In headless mode, simulate time from GLOBAL_CLOCK.
+       * Assume ~100 logic ticks per second.
+       */
+      TIME_ELAPSED = GLOBAL_CLOCK / 100;
+      TIME_LEFT = TIME_TABLE[LW_CONFIG_CURRENT_RULES.game_time] - TIME_ELAPSED;
+      if (TIME_LEFT < 0)
+        TIME_LEFT = 0;
+      return;
+    }
+
   GLOBAL_TICKER = get_ticker () - TICKER_START;
   if (PAUSE_ON)
     {

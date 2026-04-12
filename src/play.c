@@ -75,6 +75,7 @@
 #include "log.h"
 #include "network.h"
 #include "random.h"
+#include "startup.h"
 
 /*==================================================================*/
 /* variables globales                                               */
@@ -119,33 +120,36 @@ play_sequence_ex (void)
 
   d[1].proc = 0;
 
-  /*
-   * we clear the screen by blitting the Liquid War 5 logo
-   */
-  display_back_image ();
-  /*
-   * we display a "Get ready!" message so that the user does not worry
-   * about what's going on
-   */
-  main_message (d, lw_lang_string (LW_LANG_STRING_PLAY_GETREADY));
-  /*
-   * we call update dialog artificially so that the "Get ready"
-   * message is actually blitted on the screen
-   */
-  dp = my_init_dialog (d, 0);
-  my_update_dialog (dp);
-  shutdown_dialog (dp);
+  if (!STARTUP_HEADLESS)
+    {
+      /*
+       * we clear the screen by blitting the Liquid War 5 logo
+       */
+      display_back_image ();
+      /*
+       * we display a "Get ready!" message so that the user does not worry
+       * about what's going on
+       */
+      main_message (d, lw_lang_string (LW_LANG_STRING_PLAY_GETREADY));
+      /*
+       * we call update dialog artificially so that the "Get ready"
+       * message is actually blitted on the screen
+       */
+      dp = my_init_dialog (d, 0);
+      my_update_dialog (dp);
+      shutdown_dialog (dp);
 
-  /*
-   * we set up the 256 color palette so that it corresponds to
-   * the textures the user has chosen
-   */
-  lw_maptex_set_fg_palette (CONFIG_LEVEL_MAP, CONFIG_LEVEL_FG,
-                            LW_NETWORK_ON, LW_RANDOM_ON,
-                            CONFIG_USE_DEFAULT_TEXTURE);
-  lw_maptex_set_bg_palette (CONFIG_LEVEL_MAP, CONFIG_LEVEL_BG,
-                            LW_NETWORK_ON, LW_RANDOM_ON,
-                            CONFIG_USE_DEFAULT_TEXTURE);
+      /*
+       * we set up the 256 color palette so that it corresponds to
+       * the textures the user has chosen
+       */
+      lw_maptex_set_fg_palette (CONFIG_LEVEL_MAP, CONFIG_LEVEL_FG,
+                                LW_NETWORK_ON, LW_RANDOM_ON,
+                                CONFIG_USE_DEFAULT_TEXTURE);
+      lw_maptex_set_bg_palette (CONFIG_LEVEL_MAP, CONFIG_LEVEL_BG,
+                                LW_NETWORK_ON, LW_RANDOM_ON,
+                                CONFIG_USE_DEFAULT_TEXTURE);
+    }
   /*
    * we calculate how many teams are playing
    */
@@ -172,88 +176,49 @@ play_sequence_ex (void)
        */
       if (!(message = init_game ()))
         {
-          /*
-           * we set up the sound of waves a little louder so that the player
-           * understands he's playing *now*
-           */
-          WATER_VOLUME = CONFIG_WATER_VOLUME_GAME;
-          /*
-           * fade out cause we're going to switch video modes
-           */
-          my_fade_out ();
-
-          /*
-           * we change the resolution, but only if the game resolution is
-           * actually different from the menu resolution
-           */
-          if (need_to_change_mode (CONFIG_GFX_GAME,
-                                   CONFIG_GFX_MENU, CONFIG_PAGE_FLIP))
-            set_resolution (CONFIG_GFX_GAME,
-                            CONFIG_PAGE_FLIP,
-                            CONFIG_FULLSCREEN, &flip_enabled);
-
-          lw_mouse_hide ();
-
-          /*
-           * the blank round function initializes the double-buffer system
-           * and the main display target, it might fail because of lacking memory
-           */
-          if (!blank_round ())
+          if (!STARTUP_HEADLESS)
             {
-              /*
-               * fiat lux
-               */
-              my_fade_in ();
+              WATER_VOLUME = CONFIG_WATER_VOLUME_GAME;
+              my_fade_out ();
 
-              /*
-               * start playing some music
-               */
-              start_music ();
+              if (need_to_change_mode (CONFIG_GFX_GAME,
+                                       CONFIG_GFX_MENU, CONFIG_PAGE_FLIP))
+                set_resolution (CONFIG_GFX_GAME,
+                                CONFIG_PAGE_FLIP,
+                                CONFIG_FULLSCREEN, &flip_enabled);
 
-              /*
-               * OK, here we go, let's enter the main game loop
-               */
-              game ();
-
-              /*
-               * stop the music
-               */
-              stop_music ();
+              lw_mouse_hide ();
             }
 
-          /*
-           * let's be clean 8-)
-           */
-          free_game_memory ();
+          if (STARTUP_HEADLESS || !blank_round ())
+            {
+              if (!STARTUP_HEADLESS)
+                {
+                  my_fade_in ();
+                  start_music ();
+                }
 
-          /*
-           * we close the network socket abruptly
-           */
+              game ();
+
+              if (!STARTUP_HEADLESS)
+                stop_music ();
+            }
+
+          free_game_memory ();
           lw_sock_close (&LW_KEYEXCH_SOCK);
 
-          /*
-           * we turn the volume down
-           */
-          WATER_VOLUME = CONFIG_WATER_VOLUME_MENU;
+          if (!STARTUP_HEADLESS)
+            {
+              WATER_VOLUME = CONFIG_WATER_VOLUME_MENU;
+              my_fade_out ();
+              if (need_to_change_mode (CONFIG_GFX_GAME,
+                                       CONFIG_GFX_MENU,
+                                       CONFIG_PAGE_FLIP && flip_enabled))
+                set_resolution (CONFIG_GFX_MENU, 0, CONFIG_FULLSCREEN, NULL);
 
-          /*
-           * fade out before video mode switching
-           */
-          my_fade_out ();
-          /*
-           * again, we change the video mode only if it is really required
-           */
-          if (need_to_change_mode (CONFIG_GFX_GAME,
-                                   CONFIG_GFX_MENU,
-                                   CONFIG_PAGE_FLIP && flip_enabled))
-            set_resolution (CONFIG_GFX_MENU, 0, CONFIG_FULLSCREEN, NULL);
-
-          lw_mouse_show ();
-
-          /*
-           * displays the 3 tubes with the score
-           */
-          retour = display_scores ();
+              lw_mouse_show ();
+              retour = display_scores ();
+            }
         }
       else
         {

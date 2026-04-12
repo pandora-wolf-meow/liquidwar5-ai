@@ -115,6 +115,8 @@ int STARTUP_AUTO = 0;
 int STARTUP_CHECK = 0;
 int STARTUP_CAPTURE = 0;
 int STARTUP_TOMBOLA = 0;
+int STARTUP_HEADLESS = 0;
+int STARTUP_SEED = -1;
 
 #ifdef UNIX
 #ifdef ALLEGRO_MACOSX
@@ -477,6 +479,22 @@ set_startup (void)
   set_stop ();
   set_safe ();
   set_auto_check ();
+  if (exist_argument ("headless"))
+    {
+      STARTUP_HEADLESS = 1;
+      STARTUP_AUTO = 1;
+      STARTUP_DIGI_CARD = DIGI_NONE;
+      STARTUP_MIDI_CARD = MIDI_NONE;
+      STARTUP_JOYSTICK_ON = 0;
+      STARTUP_BACK_STATE = 0;
+      STARTUP_TEXTURE_STATE = 0;
+      STARTUP_WATER_STATE = 0;
+      STARTUP_SFX_STATE = 0;
+      STARTUP_MUSIC_STATE = 0;
+      STARTUP_CUSTOM_STATE = 0;
+    }
+  if (exist_argument_value ("seed"))
+    STARTUP_SEED = get_argument_int ("seed");
   set_bigdata_size ();
   set_metaserver ();
   set_misc ();

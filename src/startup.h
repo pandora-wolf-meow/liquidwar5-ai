@@ -85,6 +85,8 @@ extern int STARTUP_AUTO;
 extern int STARTUP_CHECK;
 extern int STARTUP_CAPTURE;
 extern int STARTUP_TOMBOLA;
+extern int STARTUP_HEADLESS;
+extern int STARTUP_SEED;
 
 extern char STARTUP_CFG_PATH[];
 extern char STARTUP_DAT_PATH[];
