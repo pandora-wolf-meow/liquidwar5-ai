@@ -26,12 +26,14 @@ AI Fork
 
 This is an AI-enhanced fork of Liquid War 5. Changes from upstream:
 
-- **Smarter AI opponents** — scored target selection based on enemy density, proximity, and health instead of random targeting
+- **Smarter AI opponents** — scored target selection based on enemy density, proximity, health, frontline position, and team strength
+- **11 tunable parameters per team** — each CPU team can have its own strategy
 - **Periodic replanning** — AI adapts to battlefield changes every N ticks
-- **Defensive retreat** — AI consolidates forces when losing fighters rapidly
+- **Defensive retreat** — AI consolidates forces when losing fighters, with configurable aggression
 - **Headless mode** (`-headless`) — runs games at max speed with no display for batch simulation
 - **Reproducible seeds** (`-seed N`) — deterministic games for training
-- **Configurable AI parameters** — tune AI behavior via command line
+- **Variable team count** (`-teams N`) — 2 to 6 teams per game
+- **Per-team params file** (`-ai-params-file`) — different AI strategies per team for self-play
 - **Battle data logging** — CSV logs of game state and AI decisions
 
 Training pipeline: [liquidwar5-ai-training](https://github.com/pandora-wolf-meow/liquidwar5-ai-training)
@@ -60,6 +62,8 @@ wait
 
 ### AI Parameters
 
+Global defaults (apply to all teams unless overridden by params file):
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-ai-candidates N` | 10 | Target candidates to evaluate per decision |
@@ -68,6 +72,24 @@ wait
 | `-ai-health-weight N` | 100 | Divisor for health factor in scoring |
 | `-ai-replan N` | 50 | Ticks between forced path replanning |
 | `-ai-retreat N` | 20 | Retreat if lost more than 1/N fighters |
+
+Per-team parameters (via `-ai-params-file path`):
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `distance_weight` | 10 | Penalty for far targets (scaled /10) |
+| `target_weakest` | 0 | Preference for attacking weaker teams (0-100) |
+| `aggression` | 50 | Retreat duration: 0=cautious, 100=never retreat |
+| `frontline_bias` | 0 | Prefer targets near own fighters (0-100) |
+| `cursor_momentum` | 0 | Prefer continuing in current direction (0-100) |
+
+Params file format (one setting per line):
+```
+density_weight 0 300
+aggression 0 90
+target_weakest 1 80
+aggression 1 20
+```
 
 ### Build
 
