@@ -2148,6 +2148,8 @@ broadcast_dialog_message (int msg, int c)
 {
   (void) msg;
   (void) c;
+  /* Brief yield to prevent busy-waiting in tracking loops */
+  SDL_Delay (1);
 }
 
 void
@@ -2332,7 +2334,12 @@ void
 object_message (DIALOG * d, int msg, int c)
 {
   if (d && d->proc)
-    d->proc (msg, d, c);
+    {
+      d->proc (msg, d, c);
+      /* Present screen after draw messages so button state changes are visible */
+      if (msg == MSG_DRAW)
+        lw_sdl_present_screen ();
+    }
 }
 
 void
