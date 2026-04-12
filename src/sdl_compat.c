@@ -136,11 +136,26 @@ load_bitmap (const char *filename, PALETTE pal)
   SDL_Surface *surface;
   BITMAP *bmp;
 
-  (void) pal;
-
   surface = IMG_Load (filename);
   if (!surface)
     return NULL;
+
+  /* Extract palette from loaded surface if available */
+  if (pal && surface->format->palette)
+    {
+      int i;
+      int ncolors = surface->format->palette->ncolors;
+      if (ncolors > 256)
+        ncolors = 256;
+      memset (pal, 0, sizeof (PALETTE));
+      for (i = 0; i < ncolors; ++i)
+        {
+          /* Allegro palette uses 0-63 range */
+          pal[i].r = surface->format->palette->colors[i].r / 4;
+          pal[i].g = surface->format->palette->colors[i].g / 4;
+          pal[i].b = surface->format->palette->colors[i].b / 4;
+        }
+    }
 
   bmp = (BITMAP *) calloc (1, sizeof (BITMAP));
   if (!bmp)
