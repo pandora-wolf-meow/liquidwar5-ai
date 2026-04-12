@@ -610,6 +610,7 @@ void _draw_scrollable_frame (DIALOG * d, int listsize, int offset,
 
 void lw_sdl_pump_events (void);
 void lw_sdl_present_screen (void);
+void lw_sdl_trigger_shake (float intensity);
 FONT *lw_sdl_load_font (int size);
 
 /*==================================================================*/

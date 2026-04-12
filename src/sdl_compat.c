@@ -71,6 +71,17 @@ static int lw_audio_initialized = 0;
 static SDL_Texture *lw_screen_texture = NULL;
 static int lw_screen_tex_w = 0, lw_screen_tex_h = 0;
 static SDL_Surface *lw_convert_surface = NULL;
+static float lw_shake_x = 0.0f;
+static float lw_shake_y = 0.0f;
+
+void
+lw_sdl_trigger_shake (float intensity)
+{
+  float r1 = ((float) rand () / (float) RAND_MAX) * 2.0f - 1.0f;
+  float r2 = ((float) rand () / (float) RAND_MAX) * 2.0f - 1.0f;
+  lw_shake_x = r1 * intensity;
+  lw_shake_y = r2 * intensity;
+}
 static Uint32 *lw_prev_frame = NULL;
 
 /* Keyboard modifier and GUI state */
@@ -2307,7 +2318,16 @@ lw_sdl_present_screen (void)
   SDL_UpdateTexture (lw_screen_texture, NULL, lw_convert_surface->pixels,
                      lw_convert_surface->pitch);
   SDL_RenderClear (lw_sdl_renderer);
-  SDL_RenderCopy (lw_sdl_renderer, lw_screen_texture, NULL, NULL);
+  {
+    SDL_Rect dst;
+    dst.x = (int) lw_shake_x;
+    dst.y = (int) lw_shake_y;
+    dst.w = screen->w;
+    dst.h = screen->h;
+    SDL_RenderCopy (lw_sdl_renderer, lw_screen_texture, NULL, &dst);
+  }
+  lw_shake_x *= 0.85f;
+  lw_shake_y *= 0.85f;
   SDL_RenderPresent (lw_sdl_renderer);
 
   /* DEBUG screenshot */

@@ -496,6 +496,16 @@ move_fighters (void)
                                                            (float) p0->fighter->y, 2,
                                                            COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2,
                                                            LW_PARTICLE_DISSOLVE);
+                                      /* Throttled small shake on direct kills */
+                                      {
+                                        static int shake_cnt = 0;
+                                        shake_cnt++;
+                                        if (shake_cnt >= 30)
+                                          {
+                                            shake_cnt = 0;
+                                            lw_sdl_trigger_shake (2.0f);
+                                          }
+                                      }
                                     }
                                   disp_fighter (p0->fighter);
                                 }
