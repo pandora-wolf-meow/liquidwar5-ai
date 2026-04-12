@@ -2109,26 +2109,27 @@ update_dialog (DIALOG_PLAYER * player)
         }
     }
 
-  /* Check for mouse click */
-  if (mouse_b & 1)
-    {
-      clicked = lw_dialog_find_click (d, mouse_x, mouse_y);
-      if (clicked >= 0)
-        {
-          int result = d[clicked].proc (MSG_CLICK, &d[clicked], 0);
-          if ((d[clicked].flags & D_EXIT_FLAG) || (result & D_CLOSE))
-            {
-              player->obj = clicked;
-              /* Wait for mouse release */
-              while (mouse_b & 1)
-                lw_sdl_pump_events ();
-              return 0;
-            }
-        }
-      /* Wait for mouse release to avoid repeated clicks */
-      while (mouse_b & 1)
-        lw_sdl_pump_events ();
-    }
+  /* Check for mouse click (edge-triggered to avoid blocking) */
+  {
+    static int was_clicking = 0;
+    if ((mouse_b & 1) && !was_clicking)
+      {
+        was_clicking = 1;
+        clicked = lw_dialog_find_click (d, mouse_x, mouse_y);
+        if (clicked >= 0)
+          {
+            int result = d[clicked].proc (MSG_CLICK, &d[clicked], 0);
+            if ((d[clicked].flags & D_EXIT_FLAG) || (result & D_CLOSE))
+              {
+                player->obj = clicked;
+                was_clicking = 0;
+                return 0;
+              }
+          }
+      }
+    if (!(mouse_b & 1))
+      was_clicking = 0;
+  }
 
   /* Update hover state */
   {
