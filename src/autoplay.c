@@ -52,7 +52,9 @@
 /* includes                                                         */
 /*==================================================================*/
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "army.h"
 #include "autoplay.h"
@@ -68,6 +70,11 @@
 /*==================================================================*/
 
 #define LW_AUTOPLAY_RANDOM_LIMIT 10000
+#define LW_AUTOPLAY_NUM_CANDIDATES 10
+#define LW_AUTOPLAY_DENSITY_RADIUS 5
+#define LW_AUTOPLAY_REPLAN_INTERVAL 50
+#define LW_AUTOPLAY_RETREAT_RATIO 20
+#define LW_AUTOPLAY_FIGHTER_TRACK_INTERVAL 30
 
 /*==================================================================*/
 /* variables globales                                               */
@@ -76,10 +83,235 @@
 static char COMPUTER_PATH_KEYS[NB_TEAMS][COMPUTER_PATH_MAX];
 static int COMPUTER_PATH_SIZE[NB_TEAMS];
 static int COMPUTER_PATH_WAIT[NB_TEAMS];
+static int COMPUTER_TEAM_FIGHTERS[NB_TEAMS];
+static int COMPUTER_TEAM_FIGHTERS_PREV[NB_TEAMS];
+static int COMPUTER_FIGHTERS_LAST_CLOCK = -999;
+
+/*==================================================================*/
+/* forward declarations                                             */
+/*==================================================================*/
+
+static void count_all_team_fighters (int *counts);
+
+/*==================================================================*/
+/* battle data logger                                               */
+/*==================================================================*/
+
+#define LW_LOG_STATE_INTERVAL 20
+
+static FILE *LOG_STATE_FILE = NULL;
+static FILE *LOG_DECISION_FILE = NULL;
+static int LOG_STATE_LAST_CLOCK = -999;
+
+static void
+battle_log_init (void)
+{
+  char filename[256];
+  time_t now;
+  struct tm *t;
+
+  if (LOG_STATE_FILE)
+    fclose (LOG_STATE_FILE);
+  if (LOG_DECISION_FILE)
+    fclose (LOG_DECISION_FILE);
+
+  now = time (NULL);
+  t = localtime (&now);
+
+  snprintf (filename, sizeof (filename),
+            "battle_state_%04d%02d%02d_%02d%02d%02d.csv",
+            t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
+            t->tm_hour, t->tm_min, t->tm_sec);
+  LOG_STATE_FILE = fopen (filename, "w");
+  if (LOG_STATE_FILE)
+    {
+      fprintf (LOG_STATE_FILE,
+               "tick,team0_fighters,team1_fighters,team2_fighters,"
+               "team3_fighters,team4_fighters,team5_fighters,"
+               "cursor0_x,cursor0_y,cursor1_x,cursor1_y,"
+               "cursor2_x,cursor2_y,cursor3_x,cursor3_y,"
+               "cursor4_x,cursor4_y,cursor5_x,cursor5_y,"
+               "area_w,area_h,army_size\n");
+      fprintf (stderr, "[LOG] State log: %s\n", filename);
+    }
+
+  snprintf (filename, sizeof (filename),
+            "battle_decisions_%04d%02d%02d_%02d%02d%02d.csv",
+            t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
+            t->tm_hour, t->tm_min, t->tm_sec);
+  LOG_DECISION_FILE = fopen (filename, "w");
+  if (LOG_DECISION_FILE)
+    {
+      fprintf (LOG_DECISION_FILE,
+               "tick,team,decision,target_x,target_y,best_score,"
+               "cursor_x,cursor_y,own_fighters,own_fighters_prev,"
+               "cand_scores\n");
+      fprintf (stderr, "[LOG] Decision log: %s\n", filename);
+    }
+}
+
+static void
+battle_log_state (void)
+{
+  int counts[NB_TEAMS];
+  int i;
+
+  if (!LOG_STATE_FILE)
+    return;
+  if (GLOBAL_CLOCK - LOG_STATE_LAST_CLOCK < LW_LOG_STATE_INTERVAL)
+    return;
+
+  LOG_STATE_LAST_CLOCK = GLOBAL_CLOCK;
+  count_all_team_fighters (counts);
+
+  fprintf (LOG_STATE_FILE, "%d", GLOBAL_CLOCK);
+  for (i = 0; i < NB_TEAMS; i++)
+    fprintf (LOG_STATE_FILE, ",%d", counts[i]);
+  for (i = 0; i < NB_TEAMS; i++)
+    {
+      if (CURRENT_CURSOR[i].active)
+        fprintf (LOG_STATE_FILE, ",%d,%d",
+                 CURRENT_CURSOR[i].x, CURRENT_CURSOR[i].y);
+      else
+        fprintf (LOG_STATE_FILE, ",-1,-1");
+    }
+  fprintf (LOG_STATE_FILE, ",%d,%d,%d\n",
+           CURRENT_AREA_W, CURRENT_AREA_H, CURRENT_ARMY_SIZE);
+  fflush (LOG_STATE_FILE);
+}
+
+static void
+battle_log_decision (int team, const char *decision,
+                     int target_x, int target_y, int best_score,
+                     const char *cand_scores_str)
+{
+  if (!LOG_DECISION_FILE)
+    return;
+
+  fprintf (LOG_DECISION_FILE, "%d,%d,%s,%d,%d,%d,%d,%d,%d,%d,%s\n",
+           GLOBAL_CLOCK, team, decision, target_x, target_y, best_score,
+           CURRENT_CURSOR[team].x, CURRENT_CURSOR[team].y,
+           COMPUTER_TEAM_FIGHTERS[team],
+           COMPUTER_TEAM_FIGHTERS_PREV[team],
+           cand_scores_str);
+  fflush (LOG_DECISION_FILE);
+}
+
+static void
+battle_log_close (void)
+{
+  if (LOG_STATE_FILE)
+    {
+      fclose (LOG_STATE_FILE);
+      LOG_STATE_FILE = NULL;
+    }
+  if (LOG_DECISION_FILE)
+    {
+      fclose (LOG_DECISION_FILE);
+      LOG_DECISION_FILE = NULL;
+    }
+}
 
 /*==================================================================*/
 /* fonctions                                                        */
 /*==================================================================*/
+
+/*------------------------------------------------------------------*/
+static int
+count_nearby_enemies (int cx, int cy, int my_team, int radius)
+{
+  int count = 0;
+  int x, y;
+  FIGHTER *f;
+
+  for (y = cy - radius; y <= cy + radius; y++)
+    {
+      if (y < 0 || y >= CURRENT_AREA_H)
+        continue;
+      for (x = cx - radius; x <= cx + radius; x++)
+        {
+          if (x < 0 || x >= CURRENT_AREA_W)
+            continue;
+          f = CURRENT_AREA[y * CURRENT_AREA_W + x].fighter;
+          if (f && f->team != my_team)
+            count++;
+        }
+    }
+  return count;
+}
+
+/*------------------------------------------------------------------*/
+static int
+score_candidate (int cx, int cy, int health,
+                 int cursor_x, int cursor_y, int my_team)
+{
+  int dist, density, health_score;
+
+  dist = abs (cx - cursor_x) + abs (cy - cursor_y);
+  density = count_nearby_enemies (cx, cy, my_team, LW_AUTOPLAY_DENSITY_RADIUS);
+  health_score = (MAX_FIGHTER_HEALTH - health);
+
+  return density * 50 - dist + health_score / 100;
+}
+
+/*------------------------------------------------------------------*/
+static void
+count_all_team_fighters (int *counts)
+{
+  int i;
+
+  for (i = 0; i < NB_TEAMS; i++)
+    counts[i] = 0;
+
+  for (i = 0; i < CURRENT_ARMY_SIZE; i++)
+    counts[(int) CURRENT_ARMY[i].team]++;
+}
+
+/*------------------------------------------------------------------*/
+static void
+find_team_centroid (int team, int *cx, int *cy)
+{
+  long sum_x = 0, sum_y = 0;
+  int count = 0;
+  int i;
+
+  for (i = 0; i < CURRENT_ARMY_SIZE; i++)
+    {
+      if (CURRENT_ARMY[i].team == team)
+        {
+          sum_x += CURRENT_ARMY[i].x;
+          sum_y += CURRENT_ARMY[i].y;
+          count++;
+        }
+    }
+
+  if (count > 0)
+    {
+      *cx = (int) (sum_x / count);
+      *cy = (int) (sum_y / count);
+    }
+  else
+    {
+      *cx = CURRENT_AREA_W / 2;
+      *cy = CURRENT_AREA_H / 2;
+    }
+}
+
+/*------------------------------------------------------------------*/
+static void
+update_fighter_tracking (void)
+{
+  int i;
+
+  if (GLOBAL_CLOCK - COMPUTER_FIGHTERS_LAST_CLOCK
+      >= LW_AUTOPLAY_FIGHTER_TRACK_INTERVAL)
+    {
+      COMPUTER_FIGHTERS_LAST_CLOCK = GLOBAL_CLOCK;
+      for (i = 0; i < NB_TEAMS; i++)
+        COMPUTER_TEAM_FIGHTERS_PREV[i] = COMPUTER_TEAM_FIGHTERS[i];
+      count_all_team_fighters (COMPUTER_TEAM_FIGHTERS);
+    }
+}
 
 /*------------------------------------------------------------------*/
 static void
@@ -177,73 +409,54 @@ reset_computer_path (void)
     {
       COMPUTER_PATH_SIZE[i] = 0;
       COMPUTER_PATH_WAIT[i] = 0;
+      COMPUTER_TEAM_FIGHTERS[i] = 0;
+      COMPUTER_TEAM_FIGHTERS_PREV[i] = 0;
     }
+  COMPUTER_FIGHTERS_LAST_CLOCK = -999;
+  battle_log_init ();
 }
 
 /*------------------------------------------------------------------*/
-static int
-random_free_xy_by_control_type (int *x, int *y, int team, int control_type)
+void
+close_computer_path (void)
 {
-  int i, found = 0, foundable = 0;
-  int control_type_array[NB_TEAMS];
-  int random_limit;
-
-  for (i = 0; i < NB_TEAMS; ++i)
-    {
-      control_type_array[i] = CONFIG_CONTROL_TYPE_OFF;
-    }
-
-  for (i = 0; i < NB_TEAMS; ++i)
-    {
-      if ((CURRENT_CURSOR[i].control_type == control_type
-           || control_type == CONFIG_CONTROL_TYPE_OFF)
-          && CURRENT_CURSOR[i].active)
-        {
-          control_type_array[CURRENT_CURSOR[i].team] = control_type;
-        }
-    }
-
-  for (i = 0; i < CURRENT_ARMY_SIZE && !foundable; ++i)
-    {
-      foundable |= ((CURRENT_ARMY[i].team != team) &&
-                    (control_type_array[(int) (CURRENT_ARMY[i].team)] ==
-                     control_type
-                     || control_type == CONFIG_CONTROL_TYPE_OFF));
-    }
-
-  if (foundable)
-    {
-      random_limit = 0;
-
-      while ((!found) && random_limit < LW_AUTOPLAY_RANDOM_LIMIT)
-        {
-          i = random () % CURRENT_ARMY_SIZE;
-          found = ((CURRENT_ARMY[i].team != team) &&
-                   (control_type_array[(int) (CURRENT_ARMY[i].team)] ==
-                    control_type || control_type == CONFIG_CONTROL_TYPE_OFF));
-          random_limit++;
-        }
-    }
-
-  if (!found)
-    {
-      /*
-       * OK, we found nothing, we a default random value
-       */
-      i = random () % CURRENT_ARMY_SIZE;
-    }
-
-  (*x) = CURRENT_ARMY[i].x;
-  (*y) = CURRENT_ARMY[i].y;
-
-  return found;
+  battle_log_close ();
 }
 
 /*------------------------------------------------------------------*/
-static void
-random_free_xy_different_team (int *x, int *y, int team)
+/*
+ * Returns true if the given fighter index is a valid target for the
+ * given team, respecting the control_type preference (cpu_vs_human).
+ */
+static int
+is_valid_target (int idx, int team, int control_type,
+                 int *control_type_array)
+{
+  return (CURRENT_ARMY[idx].team != team) &&
+    (control_type_array[(int) (CURRENT_ARMY[idx].team)] == control_type
+     || control_type == CONFIG_CONTROL_TYPE_OFF);
+}
+
+/*------------------------------------------------------------------*/
+/*
+ * Selects the best target for a computer cursor by sampling multiple
+ * candidates and scoring them based on enemy density, proximity to
+ * the cursor, and fighter health.
+ */
+static int
+scored_target_selection (int *x, int *y, int team, int cursor,
+                         char *scores_out, int scores_out_size)
 {
   int control_type = 0;
+  int control_type_array[NB_TEAMS];
+  int best_x, best_y, best_score;
+  int cursor_x, cursor_y;
+  int i, j, found, idx;
+  int cand_score;
+  int num_scored = 0;
+  int pos = 0;
+
+  scores_out[0] = '\0';
 
   switch (LW_CONFIG_CURRENT_RULES.cpu_vs_human)
     {
@@ -258,14 +471,92 @@ random_free_xy_different_team (int *x, int *y, int team)
       break;
     }
 
-  if (!random_free_xy_by_control_type (x, y, team, control_type))
+  for (i = 0; i < NB_TEAMS; ++i)
+    control_type_array[i] = CONFIG_CONTROL_TYPE_OFF;
+
+  for (i = 0; i < NB_TEAMS; ++i)
     {
-      /*
-       * We found nobody in the right category, we fallback
-       * on the the default search.
-       */
-      random_free_xy_by_control_type (x, y, team, CONFIG_CONTROL_TYPE_OFF);
+      if ((CURRENT_CURSOR[i].control_type == control_type
+           || control_type == CONFIG_CONTROL_TYPE_OFF)
+          && CURRENT_CURSOR[i].active)
+        control_type_array[CURRENT_CURSOR[i].team] = control_type;
     }
+
+  cursor_x = CURRENT_CURSOR[cursor].x;
+  cursor_y = CURRENT_CURSOR[cursor].y;
+
+  best_score = -999999;
+  best_x = -1;
+  best_y = -1;
+
+  for (j = 0; j < LW_AUTOPLAY_NUM_CANDIDATES; j++)
+    {
+      found = 0;
+      for (i = 0; i < 100 && !found; i++)
+        {
+          idx = random () % CURRENT_ARMY_SIZE;
+          if (is_valid_target (idx, team, control_type, control_type_array))
+            {
+              cand_score =
+                score_candidate (CURRENT_ARMY[idx].x, CURRENT_ARMY[idx].y,
+                                 CURRENT_ARMY[idx].health, cursor_x, cursor_y,
+                                 team);
+              if (pos < scores_out_size - 20)
+                pos += snprintf (scores_out + pos, scores_out_size - pos,
+                                 "%s%d@%d;%d",
+                                 num_scored > 0 ? "|" : "",
+                                 cand_score,
+                                 CURRENT_ARMY[idx].x, CURRENT_ARMY[idx].y);
+              num_scored++;
+              if (cand_score > best_score)
+                {
+                  best_score = cand_score;
+                  best_x = CURRENT_ARMY[idx].x;
+                  best_y = CURRENT_ARMY[idx].y;
+                }
+              found = 1;
+            }
+        }
+    }
+
+  if (best_x >= 0)
+    {
+      *x = best_x;
+      *y = best_y;
+    }
+  else
+    {
+      for (j = 0; j < LW_AUTOPLAY_NUM_CANDIDATES; j++)
+        {
+          idx = random () % CURRENT_ARMY_SIZE;
+          if (CURRENT_ARMY[idx].team != team)
+            {
+              cand_score =
+                score_candidate (CURRENT_ARMY[idx].x, CURRENT_ARMY[idx].y,
+                                 CURRENT_ARMY[idx].health, cursor_x, cursor_y,
+                                 team);
+              if (cand_score > best_score)
+                {
+                  best_score = cand_score;
+                  best_x = CURRENT_ARMY[idx].x;
+                  best_y = CURRENT_ARMY[idx].y;
+                }
+            }
+        }
+      if (best_x >= 0)
+        {
+          *x = best_x;
+          *y = best_y;
+        }
+      else
+        {
+          idx = random () % CURRENT_ARMY_SIZE;
+          *x = CURRENT_ARMY[idx].x;
+          *y = CURRENT_ARMY[idx].y;
+          best_score = 0;
+        }
+    }
+  return best_score;
 }
 
 /*------------------------------------------------------------------*/
@@ -276,26 +567,55 @@ get_computer_next_move (int cursor)
   char key_info;
   int x, y;
   int meme_equipe, team;
+  int losing_fighters;
+  int best_score;
+  char cand_scores[512];
+
+  team = CURRENT_CURSOR[cursor].team;
+
+  update_fighter_tracking ();
+  battle_log_state ();
 
   if (COMPUTER_PATH_SIZE[cursor] > 0)
     {
-      key_info = COMPUTER_PATH_KEYS[cursor][--COMPUTER_PATH_SIZE[cursor]];
-    }
-  else
-    {
-      key_info = 0;
-      team = CURRENT_CURSOR[cursor].team;
-      f = CURRENT_AREA[CURRENT_CURSOR[cursor].y * CURRENT_AREA_W
-                       + CURRENT_CURSOR[cursor].x].fighter;
-      if (f)
-        meme_equipe = (f->team == team);
+      if (GLOBAL_CLOCK % LW_AUTOPLAY_REPLAN_INTERVAL == 0)
+        COMPUTER_PATH_SIZE[cursor] = 0;
       else
-        meme_equipe = 1;
-      if ((--COMPUTER_PATH_WAIT[cursor]) < 0 || meme_equipe)
+        return COMPUTER_PATH_KEYS[cursor][--COMPUTER_PATH_SIZE[cursor]];
+    }
+
+  key_info = 0;
+
+  f = CURRENT_AREA[CURRENT_CURSOR[cursor].y * CURRENT_AREA_W
+                    + CURRENT_CURSOR[cursor].x].fighter;
+  if (f)
+    meme_equipe = (f->team == team);
+  else
+    meme_equipe = 1;
+
+  if ((--COMPUTER_PATH_WAIT[cursor]) < 0 || meme_equipe)
+    {
+      losing_fighters = (COMPUTER_TEAM_FIGHTERS_PREV[team] > 0
+                         && (COMPUTER_TEAM_FIGHTERS_PREV[team]
+                             - COMPUTER_TEAM_FIGHTERS[team])
+                         > COMPUTER_TEAM_FIGHTERS_PREV[team]
+                         / LW_AUTOPLAY_RETREAT_RATIO);
+
+      if (losing_fighters)
         {
-          random_free_xy_different_team (&x, &y, team);
-          calculate_computer_path (x, y, cursor);
+          find_team_centroid (team, &x, &y);
+          battle_log_decision (team, "retreat", x, y, 0, "");
         }
+      else
+        {
+          best_score = scored_target_selection (&x, &y, team, cursor,
+                                                cand_scores,
+                                                sizeof (cand_scores));
+          battle_log_decision (team, "attack", x, y, best_score,
+                               cand_scores);
+        }
+
+      calculate_computer_path (x, y, cursor);
     }
 
   return key_info;

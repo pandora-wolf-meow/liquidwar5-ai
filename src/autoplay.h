@@ -70,6 +70,7 @@
 /*==================================================================*/
 
 void reset_computer_path (void);
+void close_computer_path (void);
 char get_computer_next_move (int cursor);
 
 #endif

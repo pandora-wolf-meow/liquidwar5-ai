@@ -848,6 +848,11 @@ game (void)
         }
     }
   /*
+   * flush battle data logs
+   */
+  close_computer_path ();
+
+  /*
    * cleans up the double buffer system
    */
   last_flip ();
