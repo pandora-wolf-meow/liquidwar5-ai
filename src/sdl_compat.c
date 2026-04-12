@@ -66,6 +66,11 @@ LW_DRIVER_INFO *joystick_driver = &joystick_driver_info;
 /* SDL2 audio initialized flag */
 static int lw_audio_initialized = 0;
 
+/* Screen presentation state */
+static SDL_Texture *lw_screen_texture = NULL;
+static int lw_screen_tex_w = 0, lw_screen_tex_h = 0;
+static SDL_Surface *lw_convert_surface = NULL;
+
 /* Keyboard modifier and GUI state */
 volatile int key_shifts = 0;
 int gui_mg_color = 8;
@@ -463,6 +468,17 @@ allegro_exit (void)
         SDL_RemoveTimer (lw_timer_callbacks[i].timer_id);
     }
   lw_timer_count = 0;
+
+  if (lw_screen_texture)
+    {
+      SDL_DestroyTexture (lw_screen_texture);
+      lw_screen_texture = NULL;
+    }
+  if (lw_convert_surface)
+    {
+      SDL_FreeSurface (lw_convert_surface);
+      lw_convert_surface = NULL;
+    }
 
   if (screen)
     {
@@ -1086,21 +1102,49 @@ stretch_blit (BITMAP * src, BITMAP * dst, int sx, int sy, int sw, int sh,
   if (!src || !dst || !src->sdl_surface || !dst->sdl_surface)
     return;
 
-  /* For 8-bit to 8-bit, use manual nearest-neighbor scaling to preserve indices */
+  /* For 8-bit to 8-bit, use direct pixel access for nearest-neighbor scaling */
   if (src->sdl_surface->format->BitsPerPixel == 8
       && dst->sdl_surface->format->BitsPerPixel == 8)
     {
       int x, y;
       for (y = 0; y < dh; ++y)
-        for (x = 0; x < dw; ++x)
-          {
-            int src_x = sx + (x * sw) / dw;
-            int src_y = sy + (y * sh) / dh;
-            if (src_x >= 0 && src_x < src->w && src_y >= 0
-                && src_y < src->h)
-              putpixel (dst, dx + x, dy + y,
-                        getpixel (src, src_x, src_y));
-          }
+        {
+          int src_y = sy + (y * sh) / dh;
+          int dst_dy = dy + y;
+          unsigned char *src_row;
+          unsigned char *dst_row;
+
+          if (src_y < 0 || src_y >= src->h || dst_dy < 0
+              || dst_dy >= dst->h)
+            continue;
+
+          src_row = src->line[src_y];
+          dst_row = dst->line[dst_dy];
+
+          if (sw == dw)
+            {
+              /* No horizontal scaling - fast memcpy */
+              int copy_w = dw;
+              int s = sx, d = dx;
+              if (s < 0) { copy_w += s; d -= s; s = 0; }
+              if (d < 0) { copy_w += d; s -= d; d = 0; }
+              if (s + copy_w > src->w) copy_w = src->w - s;
+              if (d + copy_w > dst->w) copy_w = dst->w - d;
+              if (copy_w > 0)
+                memcpy (dst_row + d, src_row + s, copy_w);
+            }
+          else
+            {
+              for (x = 0; x < dw; ++x)
+                {
+                  int src_x = sx + (x * sw) / dw;
+                  int dst_dx = dx + x;
+                  if (src_x >= 0 && src_x < src->w && dst_dx >= 0
+                      && dst_dx < dst->w)
+                    dst_row[dst_dx] = src_row[src_x];
+                }
+            }
+        }
     }
   else
     {
@@ -2129,19 +2173,62 @@ _draw_scrollable_frame (DIALOG * d, int listsize, int offset,
 void
 lw_sdl_present_screen (void)
 {
-  SDL_Texture *tex;
+  int x, y;
+  Uint32 *dst_pixels;
+  int dst_pitch;
+  SDL_Palette *pal;
 
   if (!screen || !screen->sdl_surface || !lw_sdl_renderer)
     return;
 
-  tex = SDL_CreateTextureFromSurface (lw_sdl_renderer, screen->sdl_surface);
-  if (tex)
+  /* Recreate texture and conversion surface if screen size changed */
+  if (!lw_screen_texture || lw_screen_tex_w != screen->w
+      || lw_screen_tex_h != screen->h)
     {
-      SDL_RenderClear (lw_sdl_renderer);
-      SDL_RenderCopy (lw_sdl_renderer, tex, NULL, NULL);
-      SDL_RenderPresent (lw_sdl_renderer);
-      SDL_DestroyTexture (tex);
+      if (lw_screen_texture)
+        SDL_DestroyTexture (lw_screen_texture);
+      if (lw_convert_surface)
+        SDL_FreeSurface (lw_convert_surface);
+
+      lw_screen_texture =
+        SDL_CreateTexture (lw_sdl_renderer, SDL_PIXELFORMAT_ARGB8888,
+                           SDL_TEXTUREACCESS_STREAMING, screen->w,
+                           screen->h);
+      lw_convert_surface =
+        SDL_CreateRGBSurfaceWithFormat (0, screen->w, screen->h, 32,
+                                        SDL_PIXELFORMAT_ARGB8888);
+      lw_screen_tex_w = screen->w;
+      lw_screen_tex_h = screen->h;
     }
+
+  if (!lw_screen_texture || !lw_convert_surface)
+    return;
+
+  /* Fast manual palette lookup - convert 8-bit indexed to 32-bit ARGB */
+  pal = screen->sdl_surface->format->palette;
+  dst_pixels = (Uint32 *) lw_convert_surface->pixels;
+  dst_pitch = lw_convert_surface->pitch / 4;
+
+  if (pal)
+    {
+      for (y = 0; y < screen->h; ++y)
+        {
+          unsigned char *src_row = screen->line[y];
+          Uint32 *dst_row = dst_pixels + y * dst_pitch;
+          for (x = 0; x < screen->w; ++x)
+            {
+              SDL_Color *c = &pal->colors[src_row[x]];
+              dst_row[x] =
+                (255u << 24) | (c->r << 16) | (c->g << 8) | c->b;
+            }
+        }
+    }
+
+  SDL_UpdateTexture (lw_screen_texture, NULL, lw_convert_surface->pixels,
+                     lw_convert_surface->pitch);
+  SDL_RenderClear (lw_sdl_renderer);
+  SDL_RenderCopy (lw_sdl_renderer, lw_screen_texture, NULL, NULL);
+  SDL_RenderPresent (lw_sdl_renderer);
 }
 
 /*==================================================================*/
@@ -2238,7 +2325,6 @@ int
 gui_mouse_b (void)
 {
   lw_sdl_pump_events ();
-  lw_sdl_present_screen ();
   return mouse_b;
 }
 
