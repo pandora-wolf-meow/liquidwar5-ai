@@ -54,6 +54,7 @@
 
 #include <allegro.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef DOS
 #include <dos.h>
 #endif
@@ -125,6 +126,30 @@ init_all ()
   log_init ();
   lw_lang_init ();
   set_uformat (U_ASCII);
+
+  if (STARTUP_HEADLESS)
+    {
+      /*
+       * In headless mode on Linux, Allegro needs an X display to init.
+       * If DISPLAY is not set, start a virtual framebuffer with Xvfb.
+       */
+#ifdef UNIX
+      if (!getenv ("DISPLAY") || strlen (getenv ("DISPLAY")) == 0)
+        {
+          log_print_str ("Starting Xvfb for headless mode");
+          if (system ("Xvfb :99 -screen 0 320x200x8 &") == 0)
+            {
+              setenv ("DISPLAY", ":99", 1);
+              display_success (1);
+            }
+          else
+            {
+              log_print_str (" (Xvfb not found - install with: sudo apt-get install xvfb)");
+              display_success (0);
+            }
+        }
+#endif
+    }
 
   log_print_str ("Starting Allegro (http://www.talula.demon.co.uk/allegro)");
   display_success (graphics = !allegro_init ());
