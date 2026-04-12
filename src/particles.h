@@ -24,6 +24,7 @@ void lw_particles_init (void);
 void lw_particles_spawn (float x, float y, int count, int color, int type);
 void lw_particles_update (float dt);
 void lw_particles_draw (BITMAP * bmp);
+void lw_particles_draw_scaled (BITMAP * bmp, float scale_x, float scale_y);
 void lw_particles_clear (void);
 
 /* Particle types */

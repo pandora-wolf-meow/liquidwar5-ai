@@ -64,12 +64,12 @@ lw_particles_spawn (float x, float y, int count, int color, int type)
         case LW_PARTICLE_SPARK:
           {
             float angle = randf () * 2.0f * 3.14159f;
-            float speed = 20.0f + randf () * 60.0f;
+            float speed = 10.0f + randf () * 30.0f;
             particles[i].vx = cosf (angle) * speed;
             particles[i].vy = sinf (angle) * speed;
-            particles[i].life = 0.3f + randf () * 0.5f;
+            particles[i].life = 0.5f + randf () * 1.0f;
             particles[i].max_life = particles[i].life;
-            particles[i].size = 1;
+            particles[i].size = 3 + (int) (randf () * 3);
           }
           break;
 
@@ -132,8 +132,8 @@ lw_particles_update (float dt)
     }
 }
 
-void
-lw_particles_draw (BITMAP * bmp)
+static void
+draw_particles_internal (BITMAP * bmp, float sx, float sy)
 {
   int i, px, py, s;
   float alpha;
@@ -146,9 +146,11 @@ lw_particles_draw (BITMAP * bmp)
       if (!particles[i].active)
         continue;
 
-      px = (int) particles[i].x;
-      py = (int) particles[i].y;
-      s = particles[i].size;
+      px = (int) (particles[i].x * sx);
+      py = (int) (particles[i].y * sy);
+      s = (int) (particles[i].size * (sx > sy ? sx : sy));
+      if (s < 1)
+        s = 1;
       alpha = particles[i].life / particles[i].max_life;
 
       /* Only draw if visible and alpha high enough */
@@ -179,4 +181,16 @@ lw_particles_draw (BITMAP * bmp)
               }
         }
     }
+}
+
+void
+lw_particles_draw (BITMAP * bmp)
+{
+  draw_particles_internal (bmp, 1.0f, 1.0f);
+}
+
+void
+lw_particles_draw_scaled (BITMAP * bmp, float scale_x, float scale_y)
+{
+  draw_particles_internal (bmp, scale_x, scale_y);
 }

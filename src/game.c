@@ -518,11 +518,11 @@ spawn_battle_particles (void)
   static int frame = 0;
 
   frame++;
-  /* Only scan every 4th frame to save CPU, and sample sparse grid */
-  if ((frame & 3) != 0)
+  /* Only scan every 2nd frame to save CPU, and sample sparse grid */
+  if ((frame & 1) != 0)
     return;
 
-  step = 8;
+  step = 6;
   for (y = step; y < CURRENT_AREA_H - step; y += step)
     for (x = step; x < CURRENT_AREA_W - step; x += step)
       {
@@ -533,17 +533,14 @@ spawn_battle_particles (void)
         if (p->fighter && pr->fighter
             && p->fighter->team != pr->fighter->team)
           {
-            int t = (int) (unsigned char) p->fighter->team;
-            int color = COLOR_FIRST_ENTRY[t] + COLORS_PER_TEAM / 2;
-            lw_particles_spawn ((float) x, (float) y, 1, color,
+            /* Use bright white (MENU_FG = 17) for high visibility */
+            lw_particles_spawn ((float) x, (float) y, 2, MENU_FG,
                                 LW_PARTICLE_SPARK);
           }
         if (p->fighter && pd->fighter
             && p->fighter->team != pd->fighter->team)
           {
-            int t = (int) (unsigned char) pd->fighter->team;
-            int color = COLOR_FIRST_ENTRY[t] + COLORS_PER_TEAM / 2;
-            lw_particles_spawn ((float) x, (float) y, 1, color,
+            lw_particles_spawn ((float) x, (float) y, 2, MENU_FG,
                                 LW_PARTICLE_SPARK);
           }
       }
@@ -568,10 +565,15 @@ fill_next_screen (void)
       display_area ();
       /*
        * draw particles on top of the game area
+       * particles are in game-area coordinates, scale to viewport
        */
       spawn_battle_particles ();
       lw_particles_update (0.016f);
-      lw_particles_draw (NEXT_SCREEN);
+      if (NEXT_SCREEN && CURRENT_AREA_W > 0 && CURRENT_AREA_H > 0)
+        lw_particles_draw_scaled (NEXT_SCREEN,
+                                   (float) NEXT_SCREEN->w / CURRENT_AREA_W,
+                                   (float) NEXT_SCREEN->h /
+                                   CURRENT_AREA_H);
       /*
        * we remove the cursors, for they might move next time
        * so they are no longer required
