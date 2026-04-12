@@ -348,6 +348,34 @@ load_dat (void)
       SMALL_FONT = lw_sdl_load_font (8);
     if (!BIG_FONT)
       BIG_FONT = lw_sdl_load_font (12);
+
+    /* Set up default menu palette entries since we don't load from .dat */
+    {
+      int i;
+      /* Entry 16 = MENU_BG (dark blue background) */
+      GLOBAL_PALETTE[16].r = 0;
+      GLOBAL_PALETTE[16].g = 0;
+      GLOBAL_PALETTE[16].b = 10;
+      /* Entry 17 = MENU_FG (white foreground) */
+      GLOBAL_PALETTE[17].r = 63;
+      GLOBAL_PALETTE[17].g = 63;
+      GLOBAL_PALETTE[17].b = 63;
+      /* Entries 1-15: grayscale ramp for general UI */
+      for (i = 1; i <= 15; ++i)
+        {
+          GLOBAL_PALETTE[i].r = i * 4;
+          GLOBAL_PALETTE[i].g = i * 4;
+          GLOBAL_PALETTE[i].b = i * 4;
+        }
+      /* Entries 18-63: default background gradient (dark blue to blue) */
+      for (i = 18; i <= 63; ++i)
+        {
+          GLOBAL_PALETTE[i].r = 0;
+          GLOBAL_PALETTE[i].g = (i - 18) / 3;
+          GLOBAL_PALETTE[i].b = (i - 18) * 63 / 45;
+        }
+    }
+
     display_success (BIG_FONT != NULL || SMALL_FONT != NULL);
   }
 
