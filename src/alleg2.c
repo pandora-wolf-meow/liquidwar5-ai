@@ -71,7 +71,7 @@ typedef char *(*my_getfuncptr) (int, int *);
 extern void _draw_scrollable_frame (DIALOG * d,
                                     int listsize, int offset, int height,
                                     int fg_color, int bg);
-extern int isspace (int c);
+/* isspace is provided by <ctype.h> via sdl_compat.h */
 
 static void my_handle_scrollable_scroll_click (DIALOG * d, int listsize,
                                                int *offset, int height);

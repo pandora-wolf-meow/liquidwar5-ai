@@ -21,7 +21,7 @@ BITMAP *screen = NULL;
 FONT *font = NULL;
 int SCREEN_W = 0, SCREEN_H = 0, VIRTUAL_H = 0;
 
-const char *allegro_id = "SDL2 compatibility layer for Liquid War 5";
+char *allegro_id = "SDL2 compatibility layer for Liquid War 5";
 char allegro_error[256] = "";
 
 PALETTE black_palette;
@@ -65,6 +65,322 @@ LW_DRIVER_INFO *joystick_driver = &joystick_driver_info;
 
 /* SDL2 audio initialized flag */
 static int lw_audio_initialized = 0;
+
+/* Keyboard modifier and GUI state */
+volatile int key_shifts = 0;
+int gui_mg_color = 8;
+int gui_fg_color = 0;
+int gui_bg_color = 255;
+
+/* Forward declarations */
+static void lw_bitmap_setup_lines (BITMAP * bmp);
+
+/*==================================================================*/
+/* File system functions                                            */
+/*==================================================================*/
+
+int
+exists (const char *filename)
+{
+  FILE *fp = fopen (filename, "r");
+  if (fp)
+    {
+      fclose (fp);
+      return 1;
+    }
+  return 0;
+}
+
+int
+delete_file (const char *filename)
+{
+  return remove (filename);
+}
+
+char *
+fix_filename_case (char *path)
+{
+  /* No-op on modern filesystems */
+  return path;
+}
+
+char *
+fix_filename_slashes (char *path)
+{
+#ifdef WIN32
+  char *p;
+  for (p = path; *p; ++p)
+    if (*p == '/')
+      *p = '\\';
+#endif
+  return path;
+}
+
+int
+for_each_file_ex (const char *pattern, int attrib, int not_attrib,
+                  int (*callback) (const char *filename, int attrib,
+                                   void *param), void *param)
+{
+  /* TODO: implement directory scanning */
+  (void) pattern;
+  (void) attrib;
+  (void) not_attrib;
+  (void) callback;
+  (void) param;
+  return 0;
+}
+
+BITMAP *
+load_bitmap (const char *filename, PALETTE pal)
+{
+  SDL_Surface *surface;
+  BITMAP *bmp;
+
+  (void) pal;
+
+  surface = IMG_Load (filename);
+  if (!surface)
+    return NULL;
+
+  bmp = (BITMAP *) calloc (1, sizeof (BITMAP));
+  if (!bmp)
+    {
+      SDL_FreeSurface (surface);
+      return NULL;
+    }
+
+  bmp->w = surface->w;
+  bmp->h = surface->h;
+  bmp->clip = 1;
+  bmp->cl = 0;
+  bmp->ct = 0;
+  bmp->cr = surface->w;
+  bmp->cb = surface->h;
+  bmp->is_sub_bitmap = 0;
+  bmp->parent = NULL;
+  bmp->sdl_surface = surface;
+
+  lw_bitmap_setup_lines (bmp);
+
+  return bmp;
+}
+
+MIDI *
+load_midi (const char *filename)
+{
+  if (!filename)
+    return NULL;
+  return (MIDI *) Mix_LoadMUS (filename);
+}
+
+SAMPLE *
+load_sample (const char *filename)
+{
+  if (!filename)
+    return NULL;
+  return (SAMPLE *) Mix_LoadWAV (filename);
+}
+
+/*==================================================================*/
+/* Safe string copy helper                                          */
+/*==================================================================*/
+
+static void
+lw_safe_strcpy (char *dst, const char *src, size_t dstsize)
+{
+  if (dstsize == 0)
+    return;
+  size_t len = strlen (src);
+  if (len >= dstsize)
+    len = dstsize - 1;
+  memcpy (dst, src, len);
+  dst[len] = '\0';
+}
+
+/*==================================================================*/
+/* Configuration file (simple INI-style key-value store)            */
+/*==================================================================*/
+
+#define LW_CONFIG_MAX_ENTRIES 512
+#define LW_CONFIG_MAX_KEY 128
+#define LW_CONFIG_MAX_VAL 512
+
+static struct
+{
+  char section[LW_CONFIG_MAX_KEY];
+  char name[LW_CONFIG_MAX_KEY];
+  char value[LW_CONFIG_MAX_VAL];
+} lw_config_entries[LW_CONFIG_MAX_ENTRIES];
+static int lw_config_count = 0;
+static char lw_config_filename[512] = "";
+
+static int
+lw_config_find (const char *section, const char *name)
+{
+  int i;
+  for (i = 0; i < lw_config_count; ++i)
+    {
+      if (strcmp (lw_config_entries[i].section, section ? section : "") == 0
+          && strcmp (lw_config_entries[i].name, name) == 0)
+        return i;
+    }
+  return -1;
+}
+
+void
+set_config_file (const char *filename)
+{
+  FILE *fp;
+  char line[1024];
+  char current_section[LW_CONFIG_MAX_KEY] = "";
+
+  lw_safe_strcpy (lw_config_filename, filename, sizeof (lw_config_filename));
+  lw_config_count = 0;
+
+  fp = fopen (filename, "r");
+  if (!fp)
+    return;
+
+  while (fgets (line, sizeof (line), fp))
+    {
+      char *p = line;
+      char *eq;
+
+      /* Strip leading whitespace */
+      while (*p == ' ' || *p == '\t')
+        p++;
+
+      /* Skip comments and empty lines */
+      if (*p == '#' || *p == ';' || *p == '\n' || *p == '\0')
+        continue;
+
+      /* Section header */
+      if (*p == '[')
+        {
+          char *end = strchr (p, ']');
+          if (end)
+            {
+              *end = '\0';
+              lw_safe_strcpy (current_section, p + 1,
+                       sizeof (current_section));
+            }
+          continue;
+        }
+
+      /* Key = value */
+      eq = strchr (p, '=');
+      if (eq && lw_config_count < LW_CONFIG_MAX_ENTRIES)
+        {
+          char *val = eq + 1;
+          char *key_end = eq - 1;
+          char *val_end;
+
+          /* Trim key */
+          while (key_end > p && (*key_end == ' ' || *key_end == '\t'))
+            key_end--;
+          *(key_end + 1) = '\0';
+
+          /* Trim value */
+          while (*val == ' ' || *val == '\t')
+            val++;
+          val_end = val + strlen (val) - 1;
+          while (val_end > val
+                 && (*val_end == '\n' || *val_end == '\r' || *val_end == ' '))
+            val_end--;
+          *(val_end + 1) = '\0';
+
+          lw_safe_strcpy (lw_config_entries[lw_config_count].section,
+                   current_section,
+                   sizeof (lw_config_entries[0].section));
+          lw_safe_strcpy (lw_config_entries[lw_config_count].name, p,
+                   sizeof (lw_config_entries[0].name));
+          lw_safe_strcpy (lw_config_entries[lw_config_count].value, val,
+                   sizeof (lw_config_entries[0].value));
+          lw_config_count++;
+        }
+    }
+
+  fclose (fp);
+}
+
+static void
+lw_config_save (void)
+{
+  FILE *fp;
+  int i;
+  char last_section[LW_CONFIG_MAX_KEY] = "";
+
+  if (lw_config_filename[0] == '\0')
+    return;
+
+  fp = fopen (lw_config_filename, "w");
+  if (!fp)
+    return;
+
+  for (i = 0; i < lw_config_count; ++i)
+    {
+      if (strcmp (lw_config_entries[i].section, last_section) != 0)
+        {
+          if (lw_config_entries[i].section[0])
+            fprintf (fp, "[%s]\n", lw_config_entries[i].section);
+          lw_safe_strcpy (last_section, lw_config_entries[i].section,
+                   sizeof (last_section));
+        }
+      fprintf (fp, "%s = %s\n", lw_config_entries[i].name,
+               lw_config_entries[i].value);
+    }
+
+  fclose (fp);
+}
+
+void
+set_config_string (const char *section, const char *name, const char *val)
+{
+  int idx = lw_config_find (section, name);
+  if (idx >= 0)
+    {
+      lw_safe_strcpy (lw_config_entries[idx].value, val ? val : "",
+               sizeof (lw_config_entries[0].value));
+    }
+  else if (lw_config_count < LW_CONFIG_MAX_ENTRIES)
+    {
+      lw_safe_strcpy (lw_config_entries[lw_config_count].section,
+               section ? section : "",
+               sizeof (lw_config_entries[0].section));
+      lw_safe_strcpy (lw_config_entries[lw_config_count].name, name,
+               sizeof (lw_config_entries[0].name));
+      lw_safe_strcpy (lw_config_entries[lw_config_count].value, val ? val : "",
+               sizeof (lw_config_entries[0].value));
+      lw_config_count++;
+    }
+  lw_config_save ();
+}
+
+void
+set_config_int (const char *section, const char *name, int val)
+{
+  char buf[32];
+  snprintf (buf, sizeof (buf), "%d", val);
+  set_config_string (section, name, buf);
+}
+
+const char *
+get_config_string (const char *section, const char *name, const char *def)
+{
+  int idx = lw_config_find (section, name);
+  if (idx >= 0)
+    return lw_config_entries[idx].value;
+  return def;
+}
+
+int
+get_config_int (const char *section, const char *name, int def)
+{
+  int idx = lw_config_find (section, name);
+  if (idx >= 0)
+    return atoi (lw_config_entries[idx].value);
+  return def;
+}
 
 /*==================================================================*/
 /* Internal helpers                                                 */
@@ -200,6 +516,11 @@ install_sound (int digi, int midi_card, const char *config)
   return 0;
 }
 
+void remove_keyboard (void) { }
+void remove_mouse (void) { }
+void remove_sound (void) { if (lw_audio_initialized) { Mix_CloseAudio (); lw_audio_initialized = 0; } }
+void remove_timer (void) { }
+
 /*==================================================================*/
 /* Timer functions                                                  */
 /*==================================================================*/
@@ -262,6 +583,7 @@ set_gfx_mode (int card, int w, int h, int v_w, int v_h)
   Uint32 flags;
 
   (void) card;
+  (void) v_w;
 
   if (card == GFX_TEXT)
     {
@@ -505,6 +827,18 @@ clear_bitmap (BITMAP * bmp)
       SDL_Rect r = { bmp->sub_x, bmp->sub_y, bmp->w, bmp->h };
       SDL_FillRect (bmp->parent->sdl_surface, &r, 0);
     }
+}
+
+void
+clear_to_color (BITMAP * bmp, int color)
+{
+  if (!bmp || !bmp->sdl_surface)
+    return;
+  SDL_FillRect (bmp->sdl_surface, NULL,
+                SDL_MapRGBA (bmp->sdl_surface->format,
+                             (color >> 16) & 0xFF,
+                             (color >> 8) & 0xFF,
+                             color & 0xFF, 255));
 }
 
 int
@@ -767,6 +1101,158 @@ makecol8 (int r, int g, int b)
   return ((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6);
 }
 
+void
+ellipse (BITMAP * bmp, int cx, int cy, int rx, int ry, int color)
+{
+  /* Midpoint ellipse algorithm */
+  int x, y;
+  long rx2 = (long) rx * rx, ry2 = (long) ry * ry;
+  long tworx2 = 2 * rx2, twory2 = 2 * ry2;
+  long p, px, py;
+
+  x = 0;
+  y = ry;
+  px = 0;
+  py = tworx2 * y;
+
+  putpixel (bmp, cx + x, cy + y, color);
+  putpixel (bmp, cx - x, cy + y, color);
+  putpixel (bmp, cx + x, cy - y, color);
+  putpixel (bmp, cx - x, cy - y, color);
+
+  p = (long) (ry2 - rx2 * ry + 0.25 * rx2);
+  while (px < py)
+    {
+      x++;
+      px += twory2;
+      if (p < 0)
+        p += ry2 + px;
+      else
+        {
+          y--;
+          py -= tworx2;
+          p += ry2 + px - py;
+        }
+      putpixel (bmp, cx + x, cy + y, color);
+      putpixel (bmp, cx - x, cy + y, color);
+      putpixel (bmp, cx + x, cy - y, color);
+      putpixel (bmp, cx - x, cy - y, color);
+    }
+
+  p = (long) (ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) -
+              rx2 * ry2);
+  while (y > 0)
+    {
+      y--;
+      py -= tworx2;
+      if (p > 0)
+        p += rx2 - py;
+      else
+        {
+          x++;
+          px += twory2;
+          p += rx2 - py + px;
+        }
+      putpixel (bmp, cx + x, cy + y, color);
+      putpixel (bmp, cx - x, cy + y, color);
+      putpixel (bmp, cx + x, cy - y, color);
+      putpixel (bmp, cx - x, cy - y, color);
+    }
+}
+
+void
+ellipsefill (BITMAP * bmp, int cx, int cy, int rx, int ry, int color)
+{
+  int y;
+  for (y = -ry; y <= ry; ++y)
+    {
+      double ratio = (ry > 0) ? (double) y / ry : 0;
+      int xw = (int) (rx * sqrt (1.0 - ratio * ratio));
+      hline (bmp, cx - xw, cy + y, cx + xw, color);
+    }
+}
+
+void
+line (BITMAP * bmp, int x1, int y1, int x2, int y2, int color)
+{
+  /* Bresenham's line algorithm */
+  int dx = abs (x2 - x1), sx = x1 < x2 ? 1 : -1;
+  int dy = -abs (y2 - y1), sy = y1 < y2 ? 1 : -1;
+  int err = dx + dy, e2;
+
+  for (;;)
+    {
+      putpixel (bmp, x1, y1, color);
+      if (x1 == x2 && y1 == y2)
+        break;
+      e2 = 2 * err;
+      if (e2 >= dy)
+        {
+          err += dy;
+          x1 += sx;
+        }
+      if (e2 <= dx)
+        {
+          err += dx;
+          y1 += sy;
+        }
+    }
+}
+
+void
+polygon (BITMAP * bmp, int vertices, const int *points, int color)
+{
+  /* Simple scanline polygon fill */
+  int i, j, y;
+  int min_y = points[1], max_y = points[1];
+
+  for (i = 1; i < vertices; ++i)
+    {
+      if (points[i * 2 + 1] < min_y)
+        min_y = points[i * 2 + 1];
+      if (points[i * 2 + 1] > max_y)
+        max_y = points[i * 2 + 1];
+    }
+
+  for (y = min_y; y <= max_y; ++y)
+    {
+      int nodes[64], node_count = 0;
+
+      j = vertices - 1;
+      for (i = 0; i < vertices; ++i)
+        {
+          int yi = points[i * 2 + 1], yj = points[j * 2 + 1];
+          int xi = points[i * 2], xj = points[j * 2];
+          if ((yi < y && yj >= y) || (yj < y && yi >= y))
+            {
+              if (node_count < 64)
+                nodes[node_count++] = xi + (y - yi) * (xj - xi) / (yj - yi);
+            }
+          j = i;
+        }
+
+      /* Sort nodes */
+      for (i = 0; i < node_count - 1; ++i)
+        for (j = i + 1; j < node_count; ++j)
+          if (nodes[i] > nodes[j])
+            {
+              int tmp = nodes[i];
+              nodes[i] = nodes[j];
+              nodes[j] = tmp;
+            }
+
+      /* Fill between pairs */
+      for (i = 0; i < node_count - 1; i += 2)
+        hline (bmp, nodes[i], y, nodes[i + 1], color);
+    }
+}
+
+void
+circlefill (BITMAP * bmp, int cx, int cy, int r, int color)
+{
+  ellipsefill (bmp, cx, cy, r, r, color);
+}
+
 int
 save_bitmap (const char *filename, BITMAP * bmp, const PALETTE pal)
 {
@@ -883,6 +1369,22 @@ show_os_cursor (int cursor)
   return 0;
 }
 
+void
+position_mouse (int x, int y)
+{
+  if (lw_sdl_window)
+    SDL_WarpMouseInWindow (lw_sdl_window, x, y);
+  mouse_x = x;
+  mouse_y = y;
+}
+
+void
+set_mouse_sprite (BITMAP * sprite)
+{
+  /* TODO: custom cursor from bitmap */
+  (void) sprite;
+}
+
 /*==================================================================*/
 /* Palette / fade functions                                         */
 /*==================================================================*/
@@ -893,15 +1395,9 @@ fade_out (int speed)
   /* Simple fade to black using SDL2 */
   int i;
   SDL_Surface *overlay;
-  SDL_Rect fullscreen;
 
   if (!lw_sdl_window || !lw_sdl_renderer)
     return;
-
-  fullscreen.x = 0;
-  fullscreen.y = 0;
-  fullscreen.w = SCREEN_W;
-  fullscreen.h = SCREEN_H;
 
   overlay = SDL_CreateRGBSurface (0, SCREEN_W, SCREEN_H, 32,
                                   0x00FF0000, 0x0000FF00, 0x000000FF,
@@ -922,9 +1418,83 @@ fade_out (int speed)
 void
 fade_in (const PALETTE pal, int speed)
 {
-  /* Simple fade from black */
   (void) pal;
   (void) speed;
+}
+
+int
+bestfit_color (const PALETTE pal, int r, int g, int b)
+{
+  int i, best = 0, best_dist = 0x7FFFFFFF;
+  for (i = 0; i < 256; ++i)
+    {
+      int dr = (pal[i].r * 4) - r;
+      int dg = (pal[i].g * 4) - g;
+      int db = (pal[i].b * 4) - b;
+      int dist = dr * dr + dg * dg + db * db;
+      if (dist < best_dist)
+        {
+          best_dist = dist;
+          best = i;
+        }
+    }
+  return best;
+}
+
+void
+get_palette (PALETTE pal)
+{
+  memset (pal, 0, sizeof (PALETTE));
+}
+
+void
+hsv_to_rgb (float h, float s, float v, int *r, int *g, int *b)
+{
+  float c = v * s;
+  float x = c * (1.0f - fabsf (fmodf (h / 60.0f, 2.0f) - 1.0f));
+  float m = v - c;
+  float rf, gf, bf;
+
+  if (h < 60)
+    { rf = c; gf = x; bf = 0; }
+  else if (h < 120)
+    { rf = x; gf = c; bf = 0; }
+  else if (h < 180)
+    { rf = 0; gf = c; bf = x; }
+  else if (h < 240)
+    { rf = 0; gf = x; bf = c; }
+  else if (h < 300)
+    { rf = x; gf = 0; bf = c; }
+  else
+    { rf = c; gf = 0; bf = x; }
+
+  *r = (int) ((rf + m) * 255);
+  *g = (int) ((gf + m) * 255);
+  *b = (int) ((bf + m) * 255);
+}
+
+void
+rgb_to_hsv (int r, int g, int b, float *h, float *s, float *v)
+{
+  float rf = r / 255.0f, gf = g / 255.0f, bf = b / 255.0f;
+  float max = rf > gf ? (rf > bf ? rf : bf) : (gf > bf ? gf : bf);
+  float min = rf < gf ? (rf < bf ? rf : bf) : (gf < bf ? gf : bf);
+  float d = max - min;
+
+  *v = max;
+  *s = (max > 0) ? d / max : 0;
+
+  if (d == 0)
+    *h = 0;
+  else if (max == rf)
+    *h = 60.0f * fmodf ((gf - bf) / d, 6.0f);
+  else if (max == gf)
+    *h = 60.0f * ((bf - rf) / d + 2.0f);
+  else
+    *h = 60.0f * ((rf - gf) / d + 4.0f);
+
+  if (*h < 0)
+    *h += 360.0f;
 }
 
 /*==================================================================*/
@@ -966,14 +1536,25 @@ adjust_sample (const SAMPLE * spl, int vol, int pan, int freq, int loop)
   (void) loop;
 }
 
-void
+int
 play_midi (MIDI * music, int loop)
 {
   if (!music || !lw_audio_initialized)
-    return;
+    return -1;
 
-  Mix_PlayMusic ((Mix_Music *) music, loop ? -1 : 1);
+  if (Mix_PlayMusic ((Mix_Music *) music, loop ? -1 : 1) < 0)
+    return -1;
   midi_pos = 0;
+  return 0;
+}
+
+void
+set_volume (int digi_volume, int midi_volume)
+{
+  if (digi_volume >= 0)
+    Mix_Volume (-1, digi_volume * MIX_MAX_VOLUME / 255);
+  if (midi_volume >= 0)
+    Mix_VolumeMusic (midi_volume * MIX_MAX_VOLUME / 255);
 }
 
 void
@@ -1112,6 +1693,16 @@ d_clear_proc (int msg, DIALOG * d, int c)
   return D_O_K;
 }
 
+int d_box_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_shadow_box_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_bitmap_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_icon_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_keyboard_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_check_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_radio_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_menu_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+int d_yield_proc (int msg, DIALOG * d, int c) { (void) msg; (void) d; (void) c; return D_O_K; }
+
 DIALOG_PLAYER *
 init_dialog (DIALOG * d, int focus)
 {
@@ -1181,6 +1772,79 @@ _draw_scrollable_frame (DIALOG * d, int listsize, int offset,
 /* Event pump                                                       */
 /*==================================================================*/
 
+/*==================================================================*/
+/* Keyboard helper functions                                        */
+/*==================================================================*/
+
+int
+keypressed (void)
+{
+  int i;
+  lw_sdl_pump_events ();
+  for (i = 0; i < KEY_MAX; ++i)
+    if (key[i])
+      return 1;
+  return 0;
+}
+
+int
+readkey (void)
+{
+  SDL_Event event;
+  while (1)
+    {
+      while (SDL_PollEvent (&event))
+        {
+          if (event.type == SDL_KEYDOWN)
+            return (event.key.keysym.scancode << 8) |
+              (event.key.keysym.sym & 0xFF);
+        }
+      SDL_Delay (10);
+    }
+}
+
+void
+clear_keybuf (void)
+{
+  SDL_Event event;
+  while (SDL_PollEvent (&event))
+    ;
+  memset ((void *) key, 0, sizeof (key));
+}
+
+/*==================================================================*/
+/* GUI helper functions                                             */
+/*==================================================================*/
+
+int
+gui_mouse_b (void)
+{
+  return mouse_b;
+}
+
+void
+object_message (DIALOG * d, int msg, int c)
+{
+  if (d && d->proc)
+    d->proc (msg, d, c);
+}
+
+void
+rest_callback (int ms, void (*callback) (void))
+{
+  int start = SDL_GetTicks ();
+  while ((int) SDL_GetTicks () - start < ms)
+    {
+      if (callback)
+        callback ();
+      SDL_Delay (1);
+    }
+}
+
+/*==================================================================*/
+/* Event pump                                                       */
+/*==================================================================*/
+
 void
 lw_sdl_pump_events (void)
 {
@@ -1198,11 +1862,31 @@ lw_sdl_pump_events (void)
         case SDL_KEYDOWN:
           if (event.key.keysym.scancode < KEY_MAX)
             key[event.key.keysym.scancode] = 1;
+          {
+            SDL_Keymod mod = SDL_GetModState ();
+            key_shifts = 0;
+            if (mod & KMOD_SHIFT)
+              key_shifts |= KB_SHIFT_FLAG;
+            if (mod & KMOD_CTRL)
+              key_shifts |= KB_CTRL_FLAG;
+            if (mod & KMOD_ALT)
+              key_shifts |= KB_ALT_FLAG;
+          }
           break;
 
         case SDL_KEYUP:
           if (event.key.keysym.scancode < KEY_MAX)
             key[event.key.keysym.scancode] = 0;
+          {
+            SDL_Keymod mod = SDL_GetModState ();
+            key_shifts = 0;
+            if (mod & KMOD_SHIFT)
+              key_shifts |= KB_SHIFT_FLAG;
+            if (mod & KMOD_CTRL)
+              key_shifts |= KB_CTRL_FLAG;
+            if (mod & KMOD_ALT)
+              key_shifts |= KB_ALT_FLAG;
+          }
           break;
 
         case SDL_MOUSEMOTION:

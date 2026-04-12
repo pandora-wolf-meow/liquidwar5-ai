@@ -63,7 +63,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <time.h>
-#include <allegro.h>
+#include "../src/sdl_compat.h"
 #include <sys/stat.h>
 
 /*=================================================================*/

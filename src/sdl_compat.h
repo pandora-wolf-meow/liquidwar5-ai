@@ -13,6 +13,30 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+
+/*==================================================================*/
+/* Common macros missing from non-Allegro builds                    */
+/*==================================================================*/
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+#ifndef FALSE
+#define FALSE 0
+#endif
+
+#ifndef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+#ifndef MAX
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#endif
+#ifndef MID
+#define MID(a, b, c) MAX((a), MIN((b), (c)))
+#endif
+
+#define ASSERT(x) ((void)0)
 
 /*==================================================================*/
 /* Fixed-point math compatibility                                   */
@@ -351,7 +375,7 @@ extern volatile int mouse_x, mouse_y, mouse_b;
 
 extern BITMAP *screen;
 extern int SCREEN_W, SCREEN_H, VIRTUAL_H;
-extern const char *allegro_id;
+extern char *allegro_id;
 extern char allegro_error[256];
 
 extern SDL_Window *lw_sdl_window;
@@ -363,7 +387,7 @@ extern SDL_Renderer *lw_sdl_renderer;
 
 #define LOCK_FUNCTION(f)   ((void)0)
 #define LOCK_VARIABLE(v)   ((void)0)
-#define END_OF_FUNCTION(f) static void f##_end(void) { }
+#define END_OF_FUNCTION(f)
 #define MSEC_TO_TIMER(ms)  (ms)
 
 /* Allegro uses BPS_TO_TIMER and SECS_TO_TIMER too */
@@ -393,6 +417,11 @@ int install_sound (int digi, int midi, const char *config);
 int install_int_ex (void (*handler) (void), int speed);
 void remove_int (void (*handler) (void));
 
+void remove_keyboard (void);
+void remove_mouse (void);
+void remove_sound (void);
+void remove_timer (void);
+
 /*==================================================================*/
 /* Graphics mode functions                                          */
 /*==================================================================*/
@@ -413,6 +442,7 @@ BITMAP *create_bitmap_ex (int bpp, int w, int h);
 BITMAP *create_sub_bitmap (BITMAP * parent, int x, int y, int w, int h);
 void destroy_bitmap (BITMAP * bmp);
 void clear_bitmap (BITMAP * bmp);
+void clear_to_color (BITMAP * bmp, int color);
 int bitmap_color_depth (BITMAP * bmp);
 int is_linear_bitmap (BITMAP * bmp);
 int is_memory_bitmap (BITMAP * bmp);
@@ -437,6 +467,11 @@ void scroll_screen (int x, int y);
 int makecol (int r, int g, int b);
 int makecol8 (int r, int g, int b);
 int save_bitmap (const char *filename, BITMAP * bmp, const PALETTE pal);
+void ellipse (BITMAP * bmp, int cx, int cy, int rx, int ry, int color);
+void ellipsefill (BITMAP * bmp, int cx, int cy, int rx, int ry, int color);
+void line (BITMAP * bmp, int x1, int y1, int x2, int y2, int color);
+void polygon (BITMAP * bmp, int vertices, const int *points, int color);
+void circlefill (BITMAP * bmp, int cx, int cy, int r, int color);
 
 /*==================================================================*/
 /* Text rendering                                                   */
@@ -463,6 +498,8 @@ void show_mouse (BITMAP * bmp);
 void scare_mouse (void);
 void unscare_mouse (void);
 int show_os_cursor (int cursor);
+void position_mouse (int x, int y);
+void set_mouse_sprite (BITMAP * sprite);
 
 /*==================================================================*/
 /* Palette / fade functions                                         */
@@ -470,6 +507,10 @@ int show_os_cursor (int cursor);
 
 void fade_out (int speed);
 void fade_in (const PALETTE pal, int speed);
+void get_palette (PALETTE pal);
+void hsv_to_rgb (float h, float s, float v, int *r, int *g, int *b);
+void rgb_to_hsv (int r, int g, int b, float *h, float *s, float *v);
+int bestfit_color (const PALETTE pal, int r, int g, int b);
 
 /*==================================================================*/
 /* Sound functions                                                  */
@@ -478,9 +519,10 @@ void fade_in (const PALETTE pal, int speed);
 void play_sample (const SAMPLE * spl, int vol, int pan, int freq, int loop);
 void stop_sample (const SAMPLE * spl);
 void adjust_sample (const SAMPLE * spl, int vol, int pan, int freq, int loop);
-void play_midi (MIDI * music, int loop);
+int play_midi (MIDI * music, int loop);
+void set_volume (int digi_volume, int midi_volume);
 void stop_midi (void);
-int midi_pos;
+extern int midi_pos;
 
 /*==================================================================*/
 /* Joystick functions                                               */
@@ -542,6 +584,15 @@ int d_list_proc (int msg, DIALOG * d, int c);
 int d_slider_proc (int msg, DIALOG * d, int c);
 int d_textbox_proc (int msg, DIALOG * d, int c);
 int d_clear_proc (int msg, DIALOG * d, int c);
+int d_box_proc (int msg, DIALOG * d, int c);
+int d_shadow_box_proc (int msg, DIALOG * d, int c);
+int d_bitmap_proc (int msg, DIALOG * d, int c);
+int d_icon_proc (int msg, DIALOG * d, int c);
+int d_keyboard_proc (int msg, DIALOG * d, int c);
+int d_check_proc (int msg, DIALOG * d, int c);
+int d_radio_proc (int msg, DIALOG * d, int c);
+int d_menu_proc (int msg, DIALOG * d, int c);
+int d_yield_proc (int msg, DIALOG * d, int c);
 
 DIALOG_PLAYER *init_dialog (DIALOG * d, int focus);
 int update_dialog (DIALOG_PLAYER * player);
@@ -560,12 +611,178 @@ void _draw_scrollable_frame (DIALOG * d, int listsize, int offset,
 void lw_sdl_pump_events (void);
 
 /*==================================================================*/
+/* Allegro Unicode string functions (simplified ASCII versions)     */
+/*==================================================================*/
+
+static inline int usetc (char *s, int c)
+{
+  *s = (char) c;
+  return 1;
+}
+
+static inline int ugetc (const char *s)
+{
+  return (unsigned char) *s;
+}
+
+static inline int ugetx (char **s)
+{
+  int c = (unsigned char) **s;
+  (*s)++;
+  return c;
+}
+
+static inline int uwidth (const char *s)
+{
+  (void) s;
+  return 1;
+}
+
+static inline int ustrlen (const char *s)
+{
+  return (int) strlen (s);
+}
+
+static inline int uisspace (int c)
+{
+  return isspace (c);
+}
+
+static inline int uisok (int c)
+{
+  return (c >= 0 && c < 256);
+}
+
+static inline int uoffset (const char *s, int idx)
+{
+  (void) s;
+  return idx;
+}
+
+static inline int ugetat (const char *s, int idx)
+{
+  return (unsigned char) s[idx];
+}
+
+static inline void usetat (char *s, int idx, int c)
+{
+  s[idx] = (char) c;
+}
+
+static inline void uinsert (char *s, int idx, int c)
+{
+  int len = (int) strlen (s);
+  memmove (s + idx + 1, s + idx, len - idx + 1);
+  s[idx] = (char) c;
+}
+
+static inline void uremove (char *s, int idx)
+{
+  int len = (int) strlen (s);
+  memmove (s + idx, s + idx + 1, len - idx);
+}
+
+static inline char *
+ustrzcpy (char *dest, int size, const char *src)
+{
+  strncpy (dest, src, size - 1);
+  dest[size - 1] = '\0';
+  return dest;
+}
+
+/*==================================================================*/
+/* Keyboard modifier flags                                          */
+/*==================================================================*/
+
+#define KB_SHIFT_FLAG   0x0001
+#define KB_CTRL_FLAG    0x0002
+#define KB_ALT_FLAG     0x0004
+#define KB_LWIN_FLAG    0x0008
+#define KB_RWIN_FLAG    0x0010
+#define KB_MENU_FLAG    0x0020
+#define KB_SCROLOCK_FLAG 0x0100
+#define KB_NUMLOCK_FLAG  0x0200
+#define KB_CAPSLOCK_FLAG 0x0400
+#define KB_NORMAL        0x0000
+#define KB_EXTENDED      0x0800
+
+extern volatile int key_shifts;
+
+int keypressed (void);
+int readkey (void);
+void clear_keybuf (void);
+
+/*==================================================================*/
+/* File system functions                                            */
+/*==================================================================*/
+
+#define FA_RDONLY  1
+#define FA_HIDDEN  2
+#define FA_SYSTEM  4
+#define FA_LABEL   8
+#define FA_DIREC   16
+#define FA_ARCH    32
+
+int exists (const char *filename);
+int delete_file (const char *filename);
+char *fix_filename_case (char *path);
+char *fix_filename_slashes (char *path);
+int for_each_file_ex (const char *pattern, int attrib, int not_attrib,
+                      int (*callback) (const char *filename, int attrib,
+                                       void *param), void *param);
+
+BITMAP *load_bitmap (const char *filename, PALETTE pal);
+MIDI *load_midi (const char *filename);
+SAMPLE *load_sample (const char *filename);
+
+/*==================================================================*/
+/* Configuration file functions (Allegro INI-style)                 */
+/*==================================================================*/
+
+void set_config_file (const char *filename);
+void set_config_string (const char *section, const char *name,
+                        const char *val);
+void set_config_int (const char *section, const char *name, int val);
+const char *get_config_string (const char *section, const char *name,
+                               const char *def);
+int get_config_int (const char *section, const char *name, int def);
+
+/*==================================================================*/
+/* GUI helper variables and functions                               */
+/*==================================================================*/
+
+extern int gui_mg_color;
+extern int gui_fg_color;
+extern int gui_bg_color;
+
+#define MSG_UCHAR  26
+
+int gui_mouse_b (void);
+void object_message (DIALOG * d, int msg, int c);
+void rest_callback (int ms, void (*callback) (void));
+
+/*==================================================================*/
 /* Miscellaneous Allegro macros                                     */
 /*==================================================================*/
 
 #define END_OF_MAIN()
 
-/* Rest function */
+#define SYSTEM_NONE 0
+#define install_allegro(system, errno_ptr, atexit_ptr) allegro_init()
+
+/* DOS driver list macros (no-ops) */
+#define BEGIN_GFX_DRIVER_LIST
+#define END_GFX_DRIVER_LIST
+#define BEGIN_COLOR_DEPTH_LIST
+#define COLOR_DEPTH_8
+#define END_COLOR_DEPTH_LIST
+#define BEGIN_DIGI_DRIVER_LIST
+#define END_DIGI_DRIVER_LIST
+#define BEGIN_MIDI_DRIVER_LIST
+#define END_MIDI_DRIVER_LIST
+#define BEGIN_JOYSTICK_DRIVER_LIST
+#define END_JOYSTICK_DRIVER_LIST
+
 static inline void rest (int ms)
 {
   SDL_Delay (ms);

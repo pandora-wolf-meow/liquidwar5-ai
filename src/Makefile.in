@@ -232,10 +232,10 @@ EXE_FILES = liquidwar liquidwar-server liquidwar-mapgen
 
 ifeq ($(STATIC),yes)
     LINK_OPTIONS = --static
-    EXTERN_LIBS = `sdl2-config --libs` -lSDL2_image -lSDL2_mixer -lSDL2_ttf $(EFENCE_LIBRARY)
+    EXTERN_LIBS = `sdl2-config --libs` -lSDL2_image -lSDL2_mixer -lSDL2_ttf -lm $(EFENCE_LIBRARY)
 else
     LINK_OPTIONS =
-    EXTERN_LIBS = `sdl2-config --libs` -lSDL2_image -lSDL2_mixer -lSDL2_ttf $(EFENCE_LIBRARY)
+    EXTERN_LIBS = `sdl2-config --libs` -lSDL2_image -lSDL2_mixer -lSDL2_ttf -lm $(EFENCE_LIBRARY)
 endif
 
 CONFIG_OPTIONS = \
@@ -260,9 +260,9 @@ liquidwar-server: $(OBJ_FILES_SRV)
 	@echo "Linking $@ (host=$(HOST), debug=$(DEBUG), static=$(STATIC))"
 	@$(CC) $(LDFLAGS) $(LINK_OPTIONS) -o $@ $(OBJ_FILES_SRV) $(PTHREAD)
 
-liquidwar-mapgen: $(OBJ_FILES_MAPGEN)
+liquidwar-mapgen: $(OBJ_FILES_MAPGEN) sdl_compat.o
 	@echo "Linking $@ (host=$(HOST), debug=$(DEBUG), static=$(STATIC))"
-	@$(CC) $(LDFLAGS) $(LINK_OPTIONS) -o $@ $(OBJ_FILES_MAPGEN) -lm $(PTHREAD) $(EXTERN_LIBS)
+	@$(CC) $(LDFLAGS) $(LINK_OPTIONS) -o $@ $(OBJ_FILES_MAPGEN) sdl_compat.o -lm $(PTHREAD) $(EXTERN_LIBS)
 
 dep:
 	@find . \
