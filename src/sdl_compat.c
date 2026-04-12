@@ -1019,38 +1019,64 @@ void
 blit (BITMAP * src, BITMAP * dst, int sx, int sy, int dx, int dy,
       int w, int h)
 {
-  SDL_Rect srect, drect;
-
   if (!src || !dst || !src->sdl_surface || !dst->sdl_surface)
     return;
 
-  srect.x = sx;
-  srect.y = sy;
-  srect.w = w;
-  srect.h = h;
-
-  drect.x = dx;
-  drect.y = dy;
-  drect.w = w;
-  drect.h = h;
-
-  /* Handle sub-bitmaps by adjusting coordinates */
-  if (src->is_sub_bitmap)
+  /* For 8-bit to 8-bit, do raw pixel copy to preserve palette indices */
+  if (src->sdl_surface->format->BitsPerPixel == 8
+      && dst->sdl_surface->format->BitsPerPixel == 8)
     {
-      srect.x += src->sub_x;
-      srect.y += src->sub_y;
+      int row;
+      for (row = 0; row < h; ++row)
+        {
+          int src_y = sy + row;
+          int dst_y = dy + row;
+          if (src_y >= 0 && src_y < src->h && dst_y >= 0 && dst_y < dst->h)
+            {
+              int copy_w = w;
+              int src_x = sx;
+              int dst_x = dx;
+              if (src_x < 0) { copy_w += src_x; dst_x -= src_x; src_x = 0; }
+              if (dst_x < 0) { copy_w += dst_x; src_x -= dst_x; dst_x = 0; }
+              if (src_x + copy_w > src->w) copy_w = src->w - src_x;
+              if (dst_x + copy_w > dst->w) copy_w = dst->w - dst_x;
+              if (copy_w > 0)
+                memcpy (dst->line[dst_y] + dst_x,
+                        src->line[src_y] + src_x, copy_w);
+            }
+        }
     }
-  if (dst->is_sub_bitmap)
+  else
     {
-      drect.x += dst->sub_x;
-      drect.y += dst->sub_y;
-    }
+      SDL_Rect srect, drect;
 
-  SDL_BlitSurface (src->is_sub_bitmap ? src->parent->sdl_surface :
-                   src->sdl_surface,
-                   &srect,
-                   dst->is_sub_bitmap ? dst->parent->sdl_surface :
-                   dst->sdl_surface, &drect);
+      srect.x = sx;
+      srect.y = sy;
+      srect.w = w;
+      srect.h = h;
+
+      drect.x = dx;
+      drect.y = dy;
+      drect.w = w;
+      drect.h = h;
+
+      if (src->is_sub_bitmap)
+        {
+          srect.x += src->sub_x;
+          srect.y += src->sub_y;
+        }
+      if (dst->is_sub_bitmap)
+        {
+          drect.x += dst->sub_x;
+          drect.y += dst->sub_y;
+        }
+
+      SDL_BlitSurface (src->is_sub_bitmap ? src->parent->sdl_surface :
+                       src->sdl_surface,
+                       &srect,
+                       dst->is_sub_bitmap ? dst->parent->sdl_surface :
+                       dst->sdl_surface, &drect);
+    }
 }
 
 void
