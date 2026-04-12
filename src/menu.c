@@ -116,6 +116,7 @@ main_menu (int fade_in)
 
   memset (d, 0, sizeof (d));
 
+  lw_restore_back_palette ();
   display_back_image ();
 
   if (fade_in)

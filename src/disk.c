@@ -117,6 +117,18 @@ static int CUSTOM_TEXTURE_OK = 0;
 static int CUSTOM_MAP_OK = 0;
 static int CUSTOM_MUSIC_OK = 0;
 
+/* Saved background palette for restoring after gameplay */
+static PALETTE BACK_SAVED_PALETTE;
+
+void
+lw_restore_back_palette (void)
+{
+  int i;
+  for (i = 0; i < 256; ++i)
+    GLOBAL_PALETTE[i] = BACK_SAVED_PALETTE[i];
+  my_set_palette ();
+}
+
 /*------------------------------------------------------------------*/
 /* Old .dat file reading functions - disabled, using direct loading  */
 /*------------------------------------------------------------------*/
@@ -464,6 +476,12 @@ load_dat (void)
               }
           }
           LOADED_BACK = 1;
+          /* Save the full palette so we can restore it after gameplay */
+          {
+            int si;
+            for (si = 0; si < 256; ++si)
+              BACK_SAVED_PALETTE[si] = GLOBAL_PALETTE[si];
+          }
         }
       else
         create_default_back ();

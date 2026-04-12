@@ -118,5 +118,6 @@ extern BITMAP *INVISIBLE_MOUSE_CURSOR;
 int load_dat (void);
 int load_custom (void);
 void order_map (void);
+void lw_restore_back_palette (void);
 
 #endif
