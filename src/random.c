@@ -54,7 +54,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "random.h"
 #include "base.h"

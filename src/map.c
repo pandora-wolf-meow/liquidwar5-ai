@@ -289,7 +289,7 @@ check_if_playable (BITMAP * bmp)
 
   if (x0 > 0 && y0 > 0)
     {
-      putpixel (bmp, x, y, PLAYABLE_AREA);
+      putpixel (bmp, x0, y0, PLAYABLE_AREA);
       while (spread_color_down (bmp, CONSIDERED_AS_LIGHT,
                                 PLAYABLE_AREA)
              + spread_color_up (bmp, CONSIDERED_AS_LIGHT, PLAYABLE_AREA));
@@ -382,6 +382,7 @@ lw_map_archive_raw_bmp (BITMAP * bmp, PALETTE pal, const char *filename)
     {
       sort_light_and_dark (bmp, pal);
       sub_bmp = extract_significant_part (bmp);
+      (void) 0; /* extract_significant_part may return NULL for invalid maps */
       if (sub_bmp)
         {
           w = sub_bmp->w;
@@ -389,13 +390,16 @@ lw_map_archive_raw_bmp (BITMAP * bmp, PALETTE pal, const char *filename)
           if (check_if_playable (sub_bmp))
             {
               temp = malloc_in_big_data_bottom (w * h + 1);
+              (void) 0; /* malloc_in_big_data_bottom may fail */
               if (temp)
                 convert_to_buffer (sub_bmp, temp, &size, &bg_size);
             }
+          /* check_if_playable failed - map skipped */
           destroy_bitmap (sub_bmp);
         }
       destroy_bitmap (bmp);
     }
+  /* bmp was NULL - file could not be loaded */
 
   if (temp)
     {

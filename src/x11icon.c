@@ -1,6 +1,6 @@
-#include <allegro.h>
+#include "sdl_compat.h"
 /* XPM */
-static const char *allegico_xpm[] = {
+static const char *allegico_xpm[] __attribute__((unused)) = {
 /* columns rows colors chars-per-pixel */
   "48 48 235 2",
   "   c #3F0B05",

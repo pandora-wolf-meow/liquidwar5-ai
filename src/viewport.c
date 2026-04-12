@@ -52,7 +52,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "area.h"
 #include "alleg2.h"
@@ -200,6 +200,10 @@ page_flip (void)
       init_distorsion_displayer ();
       VIEWPORT_CHANGE_REGISTERED--;
     }
+
+  /* SDL2: present the screen bitmap to the window and pump events */
+  lw_sdl_present_screen ();
+  lw_sdl_pump_events ();
 
   return (NEXT_SCREEN);
 }

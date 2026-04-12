@@ -58,6 +58,7 @@
 
 #include "army.h"
 #include "back.h"
+#include "disk.h"
 #include "base.h"
 #include "config.h"
 #include "cursor.h"
@@ -339,6 +340,7 @@ display_scores (void)
   d[MENU_QUICK_QUIT].flags = D_HIDDEN;
   d[MENU_QUICK_PLAY].flags = D_HIDDEN;
 
+  lw_restore_back_palette ();
   display_back_image ();
   dp = my_init_dialog (d, 0);
   my_update_dialog (dp);

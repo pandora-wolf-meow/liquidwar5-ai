@@ -31,56 +31,38 @@ AC_CHECK_FUNC(snprintf,[SNPRINTF=yes],[SNPRINTF=no])
 AC_SUBST(SNPRINTF)
 
 
-dnl Checking for allegro-config, the very-needed Allegro file
+dnl Checking for SDL2 via sdl2-config or pkg-config
 
-AC_CHECK_PROG(ALLEGRO_CONFIG,allegro-config,yes,no)
+AC_CHECK_PROG(SDL2_CONFIG,sdl2-config,yes,no)
 
-if test $ALLEGRO_CONFIG != "yes"; then
-   AC_MSG_ERROR(Unable to find allegro-config - this tool is normally installed by Allegro and must be placed in a directory which is in your PATH. Allegro is a game programming library required by Liquid War. It is available on http://www.talula.demon.co.uk/allegro/. You need to install the complete Allegro developpement package to build Liquid War.)
+if test $SDL2_CONFIG != "yes"; then
+   AC_MSG_ERROR(Unable to find sdl2-config - please install the SDL2 development package. SDL2 is required by Liquid War. It is available on https://www.libsdl.org/.)
 fi;
 
-dnl Various checks for Allegro
+dnl Various checks for SDL2
 
-echo -n "checking for Allegro... "
-ALCFLAGS=`allegro-config --cflags 2>/dev/null`
-ALLIBS=`allegro-config --libs 2>/dev/null`
-ALVERSION=`allegro-config --version 2>/dev/null`
-ALDVERSION=`echo ALVERSION | awk 'BEGIN { FS = "."; } { printf "%d",($1 * 1000 + $2) * 1000 + $3;}'`
+echo -n "checking for SDL2... "
+ALCFLAGS=`sdl2-config --cflags 2>/dev/null`
+ALLIBS=`sdl2-config --libs 2>/dev/null`
+SDL2VERSION=`sdl2-config --version 2>/dev/null`
 
 AC_SUBST(ALCFLAGS)
 AC_SUBST(ALLIBS)
 
-dnl
-dnl main check
-dnl
-if test -z "$ALVERSION" ; then
-  AC_MSG_ERROR(Allegro does not seem to be correctly installed - please reinstall it and keep in mind that you need the complete Allegro developpement package.)
+if test -z "$SDL2VERSION" ; then
+  AC_MSG_ERROR(SDL2 does not seem to be correctly installed - please reinstall it.)
 fi
 
-dnl
-dnl version check
-dnl
-if test $ALDVERSION -gt 4002000 ; then
-   AC_MSG_ERROR(An old version of Allegro ($ALVERSION) has been detected - please upgrade to 4.2.0 or better.)
-else
-   echo "found $ALVERSION".
-fi
+echo "found SDL2 $SDL2VERSION".
 
-dnl disabled this. assume allegro-config doesn't lie and all files are
-dnl available
-#AC_CHECK_HEADER(allegro.h,,[AC_MSG_ERROR(Missing some include file. Please reinstall Allegro.)])
+dnl Check for SDL2_image
+AC_CHECK_LIB(SDL2_image, IMG_Init, [], [AC_MSG_ERROR(SDL2_image library not found. Please install libsdl2-image-dev.)])
 
-dnl disabled this. assume allegro-config doesn't lie and all files are
-dnl available
-#AC_CHECK_LIB(alleg,main,,[AC_MSG_ERROR(Compilation probe failed. Please check your Allegro installation.)])
+dnl Check for SDL2_mixer
+AC_CHECK_LIB(SDL2_mixer, Mix_OpenAudio, [], [AC_MSG_ERROR(SDL2_mixer library not found. Please install libsdl2-mixer-dev.)])
 
-dnl very often, dat (the datafile compiler) is not installed,
-dnl and we _really_ need it...
-AC_CHECK_PROG(ALLEGRO_DAT,dat,yes,no)
-
-if test $ALLEGRO_DAT != "yes"; then
-   AC_MSG_ERROR(Couldn't find the allegro datafile compiler - please install the complete Allegro package with all its developper tools. The end-user package is not enough to compile Liquid War.)
-fi;
+dnl Check for SDL2_ttf
+AC_CHECK_LIB(SDL2_ttf, TTF_Init, [], [AC_MSG_ERROR(SDL2_ttf library not found. Please install libsdl2-ttf-dev.)])
 
 
 
