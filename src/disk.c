@@ -335,15 +335,20 @@ load_dat (void)
   lw_disk_sdl_set_data_dir (STARTUP_DAT_PATH);
   display_success (1);
 
-  /* Load fonts (bitmap-based, loaded as cursor/gradient images) */
+  /* Load fonts and cursors */
   {
     log_print_str ("Loading fonts");
     log_flush ();
     SMALL_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("mouse20.pcx");
     BIG_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("mouse40.pcx");
     INVISIBLE_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("void1.pcx");
-    /* Font rendering handled by SDL2_ttf or fallback */
-    display_success (1);
+    SMALL_FONT = lw_sdl_load_font (10);
+    BIG_FONT = lw_sdl_load_font (16);
+    if (!SMALL_FONT)
+      SMALL_FONT = lw_sdl_load_font (8);
+    if (!BIG_FONT)
+      BIG_FONT = lw_sdl_load_font (12);
+    display_success (BIG_FONT != NULL || SMALL_FONT != NULL);
   }
 
   /* Load maps */

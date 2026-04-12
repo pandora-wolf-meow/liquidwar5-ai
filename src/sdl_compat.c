@@ -1300,14 +1300,78 @@ void
 textout_ex (BITMAP * bmp, const FONT * f, const char *str,
             int x, int y, int fg, int bg)
 {
-  /* TODO: implement proper text rendering with SDL2_ttf */
-  (void) bmp;
-  (void) f;
-  (void) str;
-  (void) x;
-  (void) y;
-  (void) fg;
-  (void) bg;
+  SDL_Surface *text_surface;
+  SDL_Color fg_color = { 255, 255, 255, 255 };
+  int tw, th, tx, ty;
+  Uint32 *src_pixels;
+  int src_pitch;
+
+  if (!bmp || !bmp->sdl_surface || !str || !str[0])
+    return;
+
+  if (!f || !f->ttf_font)
+    return;
+
+  /* Resolve foreground color for TTF rendering */
+  if (fg >= 0 && bmp->sdl_surface->format->palette
+      && fg < bmp->sdl_surface->format->palette->ncolors)
+    {
+      fg_color = bmp->sdl_surface->format->palette->colors[fg];
+    }
+  else if (fg >= 0)
+    {
+      fg_color.r = (fg >> 16) & 0xFF;
+      fg_color.g = (fg >> 8) & 0xFF;
+      fg_color.b = fg & 0xFF;
+    }
+
+  /* Render text to a 32-bit ARGB surface */
+  text_surface = TTF_RenderText_Blended (f->ttf_font, str, fg_color);
+  if (!text_surface)
+    return;
+
+  tw = text_surface->w;
+  th = text_surface->h;
+
+  /* Draw background if requested */
+  if (bg >= 0)
+    rectfill (bmp, x, y, x + tw - 1, y + th - 1, bg);
+
+  /* Blit pixel-by-pixel for 8-bit targets, or use SDL_BlitSurface for 32-bit */
+  if (bmp->sdl_surface->format->BitsPerPixel <= 8)
+    {
+      /* 8-bit target: write fg color where text alpha > 128 */
+      int fg_idx = (fg >= 0) ? fg : 17;        /* default to palette entry 17 (menu fg) */
+      SDL_LockSurface (text_surface);
+      src_pixels = (Uint32 *) text_surface->pixels;
+      src_pitch = text_surface->pitch / 4;
+
+      for (ty = 0; ty < th; ++ty)
+        for (tx = 0; tx < tw; ++tx)
+          {
+            Uint32 pixel = src_pixels[ty * src_pitch + tx];
+            Uint8 alpha = (pixel >> 24) & 0xFF;
+            if (alpha > 128)
+              putpixel (bmp, x + tx, y + ty, fg_idx);
+          }
+
+      SDL_UnlockSurface (text_surface);
+    }
+  else
+    {
+      /* 32-bit target: blit directly */
+      SDL_Rect dst_rect = { x, y, tw, th };
+      if (bmp->is_sub_bitmap)
+        {
+          dst_rect.x += bmp->sub_x;
+          dst_rect.y += bmp->sub_y;
+        }
+      SDL_BlitSurface (text_surface, NULL,
+                       bmp->is_sub_bitmap ? bmp->parent->sdl_surface :
+                       bmp->sdl_surface, &dst_rect);
+    }
+
+  SDL_FreeSurface (text_surface);
 }
 
 void
@@ -1833,6 +1897,52 @@ lw_sdl_present_screen (void)
       SDL_RenderPresent (lw_sdl_renderer);
       SDL_DestroyTexture (tex);
     }
+}
+
+/*==================================================================*/
+/* Font loading                                                     */
+/*==================================================================*/
+
+static const char *lw_font_search_paths[] = {
+  "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+  "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+  "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+  "/usr/share/fonts/dejavu/DejaVuSansMono.ttf",
+  "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
+  "/Library/Fonts/Courier New.ttf",
+  "C:\\Windows\\Fonts\\cour.ttf",
+  NULL
+};
+
+FONT *
+lw_sdl_load_font (int size)
+{
+  FONT *f;
+  TTF_Font *ttf = NULL;
+  int i;
+
+  for (i = 0; lw_font_search_paths[i] && !ttf; ++i)
+    ttf = TTF_OpenFont (lw_font_search_paths[i], size);
+
+  if (!ttf)
+    {
+      fprintf (stderr, "WARNING: could not find a TTF font\n");
+      return NULL;
+    }
+
+  f = (FONT *) calloc (1, sizeof (FONT));
+  if (!f)
+    {
+      TTF_CloseFont (ttf);
+      return NULL;
+    }
+
+  f->ttf_font = ttf;
+  f->height = TTF_FontHeight (ttf);
+  f->is_bitmap_font = 0;
+  f->glyph_cache = NULL;
+
+  return f;
 }
 
 /*==================================================================*/
