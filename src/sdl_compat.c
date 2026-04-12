@@ -689,9 +689,22 @@ set_color_conversion (int mode)
 void
 set_palette (PALETTE pal)
 {
-  /* In SDL2 mode, palette operations are handled differently.
-   * For now this is a no-op; colors are direct RGBA. */
-  (void) pal;
+  SDL_Color colors[256];
+  int i;
+
+  for (i = 0; i < 256; ++i)
+    {
+      /* Allegro palette values are 0-63, scale to 0-255 */
+      colors[i].r = pal[i].r * 4;
+      colors[i].g = pal[i].g * 4;
+      colors[i].b = pal[i].b * 4;
+      colors[i].a = 255;
+    }
+
+  /* Apply palette to the screen surface if it's 8-bit indexed */
+  if (screen && screen->sdl_surface && screen->sdl_surface->format->palette)
+    SDL_SetPaletteColors (screen->sdl_surface->format->palette, colors, 0,
+                          256);
 }
 
 void
@@ -737,6 +750,17 @@ create_bitmap_ex (int bpp, int w, int h)
     {
       free (bmp);
       return NULL;
+    }
+
+  /* For 8-bit surfaces, copy the palette from the screen if available */
+  if (bpp <= 8 && screen && screen->sdl_surface
+      && screen->sdl_surface->format->palette
+      && bmp->sdl_surface->format->palette)
+    {
+      SDL_SetPaletteColors (bmp->sdl_surface->format->palette,
+                            screen->sdl_surface->format->palette->colors,
+                            0,
+                            screen->sdl_surface->format->palette->ncolors);
     }
 
   bmp->w = w;
@@ -834,11 +858,15 @@ clear_to_color (BITMAP * bmp, int color)
 {
   if (!bmp || !bmp->sdl_surface)
     return;
-  SDL_FillRect (bmp->sdl_surface, NULL,
-                SDL_MapRGBA (bmp->sdl_surface->format,
-                             (color >> 16) & 0xFF,
-                             (color >> 8) & 0xFF,
-                             color & 0xFF, 255));
+  /* For 8-bit indexed surfaces, color is a palette index directly */
+  if (bmp->sdl_surface->format->BitsPerPixel <= 8)
+    SDL_FillRect (bmp->sdl_surface, NULL, color);
+  else
+    SDL_FillRect (bmp->sdl_surface, NULL,
+                  SDL_MapRGBA (bmp->sdl_surface->format,
+                               (color >> 16) & 0xFF,
+                               (color >> 8) & 0xFF,
+                               color & 0xFF, 255));
 }
 
 int
@@ -1444,7 +1472,20 @@ bestfit_color (const PALETTE pal, int r, int g, int b)
 void
 get_palette (PALETTE pal)
 {
-  memset (pal, 0, sizeof (PALETTE));
+  int i;
+
+  if (screen && screen->sdl_surface && screen->sdl_surface->format->palette)
+    {
+      SDL_Palette *sdl_pal = screen->sdl_surface->format->palette;
+      for (i = 0; i < 256 && i < sdl_pal->ncolors; ++i)
+        {
+          pal[i].r = sdl_pal->colors[i].r / 4;
+          pal[i].g = sdl_pal->colors[i].g / 4;
+          pal[i].b = sdl_pal->colors[i].b / 4;
+        }
+    }
+  else
+    memset (pal, 0, sizeof (PALETTE));
 }
 
 void
