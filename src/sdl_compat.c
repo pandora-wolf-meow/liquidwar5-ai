@@ -2218,31 +2218,8 @@ lw_sdl_present_screen (void)
   int dst_pitch;
   SDL_Palette *pal;
 
-  static Uint32 lw_last_snap = 0;
-  static int lw_snap_id = 0;
-
   if (!screen || !screen->sdl_surface || !lw_sdl_renderer)
     return;
-
-  /* Periodic screenshot dump for debugging (every 2s, max 30) */
-  {
-    Uint32 now = SDL_GetTicks ();
-    if (lw_snap_id < 30 && now - lw_last_snap > 2000)
-      {
-        char path[128];
-        SDL_Surface *snap =
-          SDL_ConvertSurfaceFormat (screen->sdl_surface,
-                                   SDL_PIXELFORMAT_RGB24, 0);
-        if (snap)
-          {
-            snprintf (path, sizeof (path), "/tmp/lw_frames/f%03d.bmp",
-                      lw_snap_id++);
-            SDL_SaveBMP (snap, path);
-            SDL_FreeSurface (snap);
-          }
-        lw_last_snap = now;
-      }
-  }
 
   /* Recreate texture and conversion surface if screen size changed */
   if (!lw_screen_texture || lw_screen_tex_w != screen->w
@@ -2269,22 +2246,69 @@ lw_sdl_present_screen (void)
   if (!lw_screen_texture || !lw_convert_surface)
     return;
 
-  /* Fast manual palette lookup - convert 8-bit indexed to 32-bit ARGB */
+  /* Convert 8-bit indexed to 32-bit ARGB with 3x3 smoothing filter.
+   * This averages each pixel with its neighbors for anti-aliased edges. */
   pal = screen->sdl_surface->format->palette;
   dst_pixels = (Uint32 *) lw_convert_surface->pixels;
   dst_pitch = lw_convert_surface->pitch / 4;
 
   if (pal)
     {
-      for (y = 0; y < screen->h; ++y)
+      int w = screen->w;
+      int h = screen->h;
+      int src_pitch = screen->sdl_surface->pitch;
+      unsigned char *src = (unsigned char *) screen->sdl_surface->pixels;
+
+      for (y = 0; y < h; ++y)
         {
-          unsigned char *src_row = screen->line[y];
           Uint32 *dst_row = dst_pixels + y * dst_pitch;
-          for (x = 0; x < screen->w; ++x)
+
+          for (x = 0; x < w; ++x)
             {
-              SDL_Color *c = &pal->colors[src_row[x]];
-              dst_row[x] =
-                (255u << 24) | (c->r << 16) | (c->g << 8) | c->b;
+              if (x > 0 && x < w - 1 && y > 0 && y < h - 1)
+                {
+                  /* 3x3 weighted average: center=4, edges=2, corners=1 */
+                  int r = 0, g = 0, b = 0;
+                  SDL_Color *c;
+                  unsigned char *row_up = src + (y - 1) * src_pitch;
+                  unsigned char *row_mid = src + y * src_pitch;
+                  unsigned char *row_dn = src + (y + 1) * src_pitch;
+
+                  /* Corners (weight 1) */
+                  c = &pal->colors[row_up[x - 1]];
+                  r += c->r; g += c->g; b += c->b;
+                  c = &pal->colors[row_up[x + 1]];
+                  r += c->r; g += c->g; b += c->b;
+                  c = &pal->colors[row_dn[x - 1]];
+                  r += c->r; g += c->g; b += c->b;
+                  c = &pal->colors[row_dn[x + 1]];
+                  r += c->r; g += c->g; b += c->b;
+
+                  /* Edges (weight 2) */
+                  c = &pal->colors[row_up[x]];
+                  r += c->r * 2; g += c->g * 2; b += c->b * 2;
+                  c = &pal->colors[row_dn[x]];
+                  r += c->r * 2; g += c->g * 2; b += c->b * 2;
+                  c = &pal->colors[row_mid[x - 1]];
+                  r += c->r * 2; g += c->g * 2; b += c->b * 2;
+                  c = &pal->colors[row_mid[x + 1]];
+                  r += c->r * 2; g += c->g * 2; b += c->b * 2;
+
+                  /* Center (weight 4) */
+                  c = &pal->colors[row_mid[x]];
+                  r += c->r * 4; g += c->g * 4; b += c->b * 4;
+
+                  /* Total weight = 4 + 4*2 + 4*1 = 16 */
+                  dst_row[x] = (255u << 24)
+                    | ((r >> 4) << 16) | ((g >> 4) << 8) | (b >> 4);
+                }
+              else
+                {
+                  /* Edge pixels: no smoothing */
+                  SDL_Color *c = &pal->colors[src[y * src_pitch + x]];
+                  dst_row[x] =
+                    (255u << 24) | (c->r << 16) | (c->g << 8) | c->b;
+                }
             }
         }
     }
