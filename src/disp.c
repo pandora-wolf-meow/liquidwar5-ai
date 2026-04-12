@@ -76,7 +76,7 @@
  * the jagged appearance. Works on the 8-bit indexed bitmap by
  * choosing the most common neighbor color at edges.
  */
-static void
+static void __attribute__((unused))
 smooth_army_edges (void)
 {
   int x, y;
@@ -153,7 +153,6 @@ smooth_army_edges (void)
 static void
 disp_stretch_area (void)
 {
-  smooth_army_edges ();
   stretch_blit (CURRENT_AREA_DISP, NEXT_SCREEN, 0, 0,
                 CURRENT_AREA_W, CURRENT_AREA_H,
                 0, 0, NEXT_SCREEN->w, NEXT_SCREEN->h);

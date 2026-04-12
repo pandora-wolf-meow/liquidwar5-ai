@@ -535,14 +535,27 @@ spawn_battle_particles (void)
         if (p->fighter && pr->fighter
             && p->fighter->team != pr->fighter->team)
           {
-            /* Use bright white (MENU_FG = 17) for high visibility */
-            lw_particles_spawn ((float) x, (float) y, 2, MENU_FG,
+            int t1 = (int) (unsigned char) p->fighter->team;
+            int t2 = (int) (unsigned char) pr->fighter->team;
+            int c1 = COLOR_FIRST_ENTRY[t1] + COLORS_PER_TEAM - 1;
+            int c2 = COLOR_FIRST_ENTRY[t2] + COLORS_PER_TEAM - 1;
+            lw_particles_spawn ((float) x, (float) y, 1, c1,
+                                LW_PARTICLE_SPARK);
+            lw_particles_spawn ((float) x, (float) y, 1, c2,
+                                LW_PARTICLE_SPARK);
+            lw_particles_spawn ((float) x, (float) y, 1, MENU_FG,
                                 LW_PARTICLE_SPARK);
           }
         if (p->fighter && pd->fighter
             && p->fighter->team != pd->fighter->team)
           {
-            lw_particles_spawn ((float) x, (float) y, 2, MENU_FG,
+            int t1 = (int) (unsigned char) p->fighter->team;
+            int t2 = (int) (unsigned char) pd->fighter->team;
+            int c1 = COLOR_FIRST_ENTRY[t1] + COLORS_PER_TEAM - 1;
+            int c2 = COLOR_FIRST_ENTRY[t2] + COLORS_PER_TEAM - 1;
+            lw_particles_spawn ((float) x, (float) y, 1, c1,
+                                LW_PARTICLE_SPARK);
+            lw_particles_spawn ((float) x, (float) y, 1, c2,
                                 LW_PARTICLE_SPARK);
           }
       }

@@ -64,10 +64,10 @@ lw_particles_spawn (float x, float y, int count, int color, int type)
         case LW_PARTICLE_SPARK:
           {
             float angle = randf () * 2.0f * 3.14159f;
-            float speed = 10.0f + randf () * 30.0f;
+            float speed = 40.0f + randf () * 80.0f;
             particles[i].vx = cosf (angle) * speed;
             particles[i].vy = sinf (angle) * speed;
-            particles[i].life = 0.3f + randf () * 0.6f;
+            particles[i].life = 0.15f + randf () * 0.3f;
             particles[i].max_life = particles[i].life;
             particles[i].size = 1;
           }
@@ -76,12 +76,12 @@ lw_particles_spawn (float x, float y, int count, int color, int type)
         case LW_PARTICLE_SPLASH:
           {
             float angle = randf () * 2.0f * 3.14159f;
-            float speed = 10.0f + randf () * 30.0f;
+            float speed = 30.0f + randf () * 60.0f;
             particles[i].vx = cosf (angle) * speed;
-            particles[i].vy = sinf (angle) * speed - 20.0f;
-            particles[i].life = 0.5f + randf () * 0.8f;
+            particles[i].vy = sinf (angle) * speed - 40.0f;
+            particles[i].life = 0.2f + randf () * 0.4f;
             particles[i].max_life = particles[i].life;
-            particles[i].size = 1 + (int) (randf () * 2);
+            particles[i].size = 1;
           }
           break;
 
@@ -116,12 +116,12 @@ lw_particles_update (float dt)
       particles[i].x += particles[i].vx * dt;
       particles[i].y += particles[i].vy * dt;
 
-      /* Gravity for splashes */
-      particles[i].vy += 40.0f * dt;
+      /* Light gravity */
+      particles[i].vy += 20.0f * dt;
 
-      /* Friction */
-      particles[i].vx *= (1.0f - 0.5f * dt);
-      particles[i].vy *= (1.0f - 0.5f * dt);
+      /* Minimal friction - let them fly */
+      particles[i].vx *= (1.0f - 0.2f * dt);
+      particles[i].vy *= (1.0f - 0.2f * dt);
 
       particles[i].life -= dt;
       if (particles[i].life <= 0)
