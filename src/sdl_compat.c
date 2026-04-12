@@ -2130,15 +2130,25 @@ update_dialog (DIALOG_PLAYER * player)
       was_clicking = 0;
   }
 
-  /* Update hover state */
+  /* Update hover state + animated hover intensity in d->d2 */
   {
     int hi, hovered = lw_dialog_find_click (d, mouse_x, mouse_y);
     for (hi = 0; d[hi].proc; ++hi)
       {
         if (hi == hovered)
-          d[hi].flags |= D_GOTMOUSE_FLAG;
+          {
+            d[hi].flags |= D_GOTMOUSE_FLAG;
+            d[hi].d2 += 25;
+            if (d[hi].d2 > 255)
+              d[hi].d2 = 255;
+          }
         else
-          d[hi].flags &= ~D_GOTMOUSE_FLAG;
+          {
+            d[hi].flags &= ~D_GOTMOUSE_FLAG;
+            d[hi].d2 -= 20;
+            if (d[hi].d2 < 0)
+              d[hi].d2 = 0;
+          }
       }
   }
 

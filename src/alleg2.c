@@ -527,6 +527,7 @@ my_button_proc (int msg, DIALOG * d, int c)
       {
         int hover = (d->flags & D_GOTMOUSE) ? 1 : 0;
         int highlight_color = 15;   /* bright gray from palette */
+        int mid_color = 10;         /* medium gray from palette */
 
         if (d->flags & D_SELECTED)
           {
@@ -536,9 +537,19 @@ my_button_proc (int msg, DIALOG * d, int c)
           }
         else
           {
+            /* 3-step eased hover transition driven by d->d2 (0..255) */
+            int hv = d->d2;
             g = 0;
             state1 = (d->flags & D_DISABLED) ? gui_mg_color : d->fg;
-            state2 = hover ? highlight_color : d->bg;
+            if (hv >= 192)
+              state2 = highlight_color;
+            else if (hv >= 64)
+              state2 = mid_color;
+            else
+              state2 = d->bg;
+            /* keep click-tracking loop's snap highlight working */
+            if (hover && hv < 64)
+              state2 = mid_color;
           }
 
         /* Drop shadow: dark offset rect drawn before the fill */
