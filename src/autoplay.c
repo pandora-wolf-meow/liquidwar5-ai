@@ -64,6 +64,7 @@
 #include "move.h"
 #include "lwtime.h"
 #include "config.h"
+#include "startup.h"
 
 /*==================================================================*/
 /* constants                                                        */
