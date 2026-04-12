@@ -61,6 +61,8 @@
 #include "area.h"
 #include "autoplay.h"
 #include "back.h"
+#include "palette.h"
+#include "particles.h"
 #include "army.h"
 #include "bigdata.h"
 #include "config.h"
@@ -505,6 +507,48 @@ blank_round (void)
  * can display the map or special screens if we are in some
  * sort of debug mode
  */
+/*------------------------------------------------------------------*/
+/*
+ * spawn particles at battle frontlines where different teams meet
+ */
+static void
+spawn_battle_particles (void)
+{
+  int x, y, step;
+  static int frame = 0;
+
+  frame++;
+  /* Only scan every 4th frame to save CPU, and sample sparse grid */
+  if ((frame & 3) != 0)
+    return;
+
+  step = 8;
+  for (y = step; y < CURRENT_AREA_H - step; y += step)
+    for (x = step; x < CURRENT_AREA_W - step; x += step)
+      {
+        PLACE *p = CURRENT_AREA + (y * CURRENT_AREA_W + x);
+        PLACE *pr = p + step;
+        PLACE *pd = p + step * CURRENT_AREA_W;
+
+        if (p->fighter && pr->fighter
+            && p->fighter->team != pr->fighter->team)
+          {
+            int t = (int) (unsigned char) p->fighter->team;
+            int color = COLOR_FIRST_ENTRY[t] + COLORS_PER_TEAM / 2;
+            lw_particles_spawn ((float) x, (float) y, 1, color,
+                                LW_PARTICLE_SPARK);
+          }
+        if (p->fighter && pd->fighter
+            && p->fighter->team != pd->fighter->team)
+          {
+            int t = (int) (unsigned char) pd->fighter->team;
+            int color = COLOR_FIRST_ENTRY[t] + COLORS_PER_TEAM / 2;
+            lw_particles_spawn ((float) x, (float) y, 1, color,
+                                LW_PARTICLE_SPARK);
+          }
+      }
+}
+
 static void
 fill_next_screen (void)
 {
@@ -522,6 +566,12 @@ fill_next_screen (void)
        * physical drawing of the map
        */
       display_area ();
+      /*
+       * draw particles on top of the game area
+       */
+      spawn_battle_particles ();
+      lw_particles_update (0.016f);
+      lw_particles_draw (NEXT_SCREEN);
       /*
        * we remove the cursors, for they might move next time
        * so they are no longer required
@@ -731,6 +781,10 @@ game (void)
    * and he it can start recording stuff
    */
   start_play_time ();
+  /*
+   * initialize particle effects
+   */
+  lw_particles_init ();
   /*
    * resets the secret code sequences
    */

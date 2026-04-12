@@ -146,6 +146,7 @@ OBJ_NAMES = \
 	network \
 	options \
 	palette \
+	particles \
 	parser \
 	path \
 	ping \

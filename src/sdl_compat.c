@@ -2253,6 +2253,8 @@ lw_sdl_present_screen (void)
       if (lw_convert_surface)
         SDL_FreeSurface (lw_convert_surface);
 
+      /* Enable linear filtering for smooth scaling when window is resized */
+      SDL_SetHint (SDL_HINT_RENDER_SCALE_QUALITY, "linear");
       lw_screen_texture =
         SDL_CreateTexture (lw_sdl_renderer, SDL_PIXELFORMAT_ARGB8888,
                            SDL_TEXTUREACCESS_STREAMING, screen->w,
