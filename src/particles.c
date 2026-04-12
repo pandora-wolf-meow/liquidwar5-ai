@@ -96,6 +96,19 @@ lw_particles_spawn (float x, float y, int count, int color, int type)
             particles[i].size = 2 + (int) (randf () * 3);
           }
           break;
+
+        case LW_PARTICLE_DISSOLVE:
+          {
+            /* Fighter dissolving - drift outward slowly then fade */
+            float angle = randf () * 2.0f * 3.14159f;
+            float speed = 3.0f + randf () * 8.0f;
+            particles[i].vx = cosf (angle) * speed;
+            particles[i].vy = sinf (angle) * speed - 2.0f;
+            particles[i].life = 0.2f + randf () * 0.3f;
+            particles[i].max_life = particles[i].life;
+            particles[i].size = 1;
+          }
+          break;
         }
 
       if (particle_count < LW_MAX_PARTICLES)

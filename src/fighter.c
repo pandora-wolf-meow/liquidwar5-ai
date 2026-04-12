@@ -491,11 +491,11 @@ move_fighters (void)
                                       while (p0->fighter->health < 0)
                                         p0->fighter->health += new_health[team];
                                       p0->fighter->team = team;
-                                      /* Fighter captured - spawn combat particles */
+                                      /* Old team dissolves away */
                                       lw_particles_spawn ((float) p0->fighter->x,
-                                                           (float) p0->fighter->y, 3,
-                                                           COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM - 1,
-                                                           LW_PARTICLE_SPARK);
+                                                           (float) p0->fighter->y, 2,
+                                                           COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2,
+                                                           LW_PARTICLE_DISSOLVE);
                                     }
                                   disp_fighter (p0->fighter);
                                 }
@@ -518,8 +518,8 @@ move_fighters (void)
                                           p1->fighter->team = team;
                                           lw_particles_spawn ((float) p1->fighter->x,
                                                                (float) p1->fighter->y, 2,
-                                                               COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM - 1,
-                                                               LW_PARTICLE_SPARK);
+                                                               COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2,
+                                                               LW_PARTICLE_DISSOLVE);
                                         }
                                       disp_fighter (p1->fighter);
                                     }
@@ -542,8 +542,8 @@ move_fighters (void)
                                               p2->fighter->team = team;
                                               lw_particles_spawn ((float) p2->fighter->x,
                                                                    (float) p2->fighter->y, 2,
-                                                                   COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM - 1,
-                                                                   LW_PARTICLE_SPARK);
+                                                                   COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2,
+                                                                   LW_PARTICLE_DISSOLVE);
                                             }
                                           disp_fighter (p2->fighter);
                                         }

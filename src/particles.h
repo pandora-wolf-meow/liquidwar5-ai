@@ -31,5 +31,6 @@ void lw_particles_clear (void);
 #define LW_PARTICLE_SPARK    0
 #define LW_PARTICLE_SPLASH   1
 #define LW_PARTICLE_GLOW     2
+#define LW_PARTICLE_DISSOLVE 3
 
 #endif
