@@ -67,9 +67,9 @@ lw_particles_spawn (float x, float y, int count, int color, int type)
             float speed = 10.0f + randf () * 30.0f;
             particles[i].vx = cosf (angle) * speed;
             particles[i].vy = sinf (angle) * speed;
-            particles[i].life = 0.5f + randf () * 1.0f;
+            particles[i].life = 0.3f + randf () * 0.6f;
             particles[i].max_life = particles[i].life;
-            particles[i].size = 3 + (int) (randf () * 3);
+            particles[i].size = 1;
           }
           break;
 
