@@ -491,11 +491,18 @@ move_fighters (void)
                                       while (p0->fighter->health < 0)
                                         p0->fighter->health += new_health[team];
                                       p0->fighter->team = team;
-                                      /* Old team dissolves away */
-                                      lw_particles_spawn ((float) p0->fighter->x,
-                                                           (float) p0->fighter->y, 2,
-                                                           COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2,
-                                                           LW_PARTICLE_DISSOLVE);
+                                      /* Old team dissolves away - burst with small spread */
+                                      {
+                                        int pn;
+                                        int base_col = COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2;
+                                        for (pn = 0; pn < 5; ++pn)
+                                          {
+                                            float px = (float) (p0->fighter->x + (rand () % 5 - 2));
+                                            float py = (float) (p0->fighter->y + (rand () % 5 - 2));
+                                            lw_particles_spawn (px, py, 1, base_col,
+                                                                LW_PARTICLE_DISSOLVE);
+                                          }
+                                      }
                                       /* Throttled small shake on direct kills */
                                       {
                                         static int shake_cnt = 0;
