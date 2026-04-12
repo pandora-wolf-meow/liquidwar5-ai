@@ -580,7 +580,8 @@ reset_computer_path (void)
       COMPUTER_RETREAT_CLOCK[i] = 0;
     }
   COMPUTER_FIGHTERS_LAST_CLOCK = -999;
-  battle_log_init ();
+  if (!STARTUP_HEADLESS)
+    battle_log_init ();
 }
 
 /*------------------------------------------------------------------*/
