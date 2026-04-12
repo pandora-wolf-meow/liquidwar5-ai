@@ -87,13 +87,14 @@ lw_particles_spawn (float x, float y, int count, int color, int type)
 
         case LW_PARTICLE_GLOW:
           {
+            /* Soft fading dot - tuned for cursor trails */
             float angle = randf () * 2.0f * 3.14159f;
-            float speed = 5.0f + randf () * 15.0f;
+            float speed = 2.0f + randf () * 5.0f;
             particles[i].vx = cosf (angle) * speed;
             particles[i].vy = sinf (angle) * speed;
-            particles[i].life = 0.8f + randf () * 1.2f;
+            particles[i].life = 0.25f + randf () * 0.15f;
             particles[i].max_life = particles[i].life;
-            particles[i].size = 2 + (int) (randf () * 3);
+            particles[i].size = 1 + (int) (randf () * 2);
           }
           break;
 

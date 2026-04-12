@@ -235,10 +235,14 @@ check_loose_team (void)
        */
       play_loose ();
       /*
-       * remove the team from the info bar, so that room if freed for 
+       * remove the team from the info bar, so that room if freed for
        * other teams
        */
       free_info_bar ();
+      /*
+       * juice: big shake when a team is eliminated
+       */
+      lw_sdl_trigger_shake (8.0f);
     }
 
   return (lost);

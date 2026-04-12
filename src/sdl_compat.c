@@ -71,6 +71,17 @@ static int lw_audio_initialized = 0;
 static SDL_Texture *lw_screen_texture = NULL;
 static int lw_screen_tex_w = 0, lw_screen_tex_h = 0;
 static SDL_Surface *lw_convert_surface = NULL;
+static float lw_shake_x = 0.0f;
+static float lw_shake_y = 0.0f;
+
+void
+lw_sdl_trigger_shake (float intensity)
+{
+  float r1 = ((float) rand () / (float) RAND_MAX) * 2.0f - 1.0f;
+  float r2 = ((float) rand () / (float) RAND_MAX) * 2.0f - 1.0f;
+  lw_shake_x = r1 * intensity;
+  lw_shake_y = r2 * intensity;
+}
 static Uint32 *lw_prev_frame = NULL;
 
 /* Keyboard modifier and GUI state */
@@ -2130,15 +2141,25 @@ update_dialog (DIALOG_PLAYER * player)
       was_clicking = 0;
   }
 
-  /* Update hover state */
+  /* Update hover state + animated hover intensity in d->d2 */
   {
     int hi, hovered = lw_dialog_find_click (d, mouse_x, mouse_y);
     for (hi = 0; d[hi].proc; ++hi)
       {
         if (hi == hovered)
-          d[hi].flags |= D_GOTMOUSE_FLAG;
+          {
+            d[hi].flags |= D_GOTMOUSE_FLAG;
+            d[hi].d2 += 25;
+            if (d[hi].d2 > 255)
+              d[hi].d2 = 255;
+          }
         else
-          d[hi].flags &= ~D_GOTMOUSE_FLAG;
+          {
+            d[hi].flags &= ~D_GOTMOUSE_FLAG;
+            d[hi].d2 -= 20;
+            if (d[hi].d2 < 0)
+              d[hi].d2 = 0;
+          }
       }
   }
 
@@ -2288,12 +2309,25 @@ lw_sdl_present_screen (void)
     /* Subtle battle frontline glow */
     lw_postfx_battle_glow (dst_pixels, screen->w, screen->h, dst_pitch,
                             15);
+
+    /* Cinematic radial vignette */
+    lw_postfx_vignette (dst_pixels, screen->w, screen->h, dst_pitch,
+                         0.35f);
   }
 
   SDL_UpdateTexture (lw_screen_texture, NULL, lw_convert_surface->pixels,
                      lw_convert_surface->pitch);
   SDL_RenderClear (lw_sdl_renderer);
-  SDL_RenderCopy (lw_sdl_renderer, lw_screen_texture, NULL, NULL);
+  {
+    SDL_Rect dst;
+    dst.x = (int) lw_shake_x;
+    dst.y = (int) lw_shake_y;
+    dst.w = screen->w;
+    dst.h = screen->h;
+    SDL_RenderCopy (lw_sdl_renderer, lw_screen_texture, NULL, &dst);
+  }
+  lw_shake_x *= 0.85f;
+  lw_shake_y *= 0.85f;
   SDL_RenderPresent (lw_sdl_renderer);
 }
 
