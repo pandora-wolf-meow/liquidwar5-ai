@@ -668,11 +668,10 @@ set_gfx_mode (int card, int w, int h, int v_w, int v_h)
     }
   else
     {
-      /* Create window at 1.5x logical size for GPU-smoothed upscaling */
       lw_sdl_window = SDL_CreateWindow ("Liquid War",
                                         SDL_WINDOWPOS_CENTERED,
                                         SDL_WINDOWPOS_CENTERED,
-                                        w * 3 / 2, h * 3 / 2, flags);
+                                        w, h, flags);
       if (!lw_sdl_window)
         {
           snprintf (allegro_error, sizeof (allegro_error),
@@ -2486,23 +2485,19 @@ lw_sdl_pump_events (void)
           break;
 
         case SDL_MOUSEMOTION:
+          mouse_x = event.motion.x;
+          mouse_y = event.motion.y;
+          break;
+
         case SDL_MOUSEBUTTONDOWN:
+          mouse_x = event.button.x;
+          mouse_y = event.button.y;
+          mouse_b |= (1 << (event.button.button - 1));
+          break;
+
         case SDL_MOUSEBUTTONUP:
-          /* Use SDL logical coordinate mapping for mouse position */
-          {
-            float fx, fy;
-            SDL_RenderWindowToLogical (lw_sdl_renderer,
-                                       event.type == SDL_MOUSEMOTION
-                                       ? event.motion.x : event.button.x,
-                                       event.type == SDL_MOUSEMOTION
-                                       ? event.motion.y : event.button.y,
-                                       &fx, &fy);
-            mouse_x = (int) fx;
-            mouse_y = (int) fy;
-          }
-          if (event.type == SDL_MOUSEBUTTONDOWN)
-            mouse_b |= (1 << (event.button.button - 1));
-          else if (event.type == SDL_MOUSEBUTTONUP)
+          mouse_x = event.button.x;
+          mouse_y = event.button.y;
             mouse_b &= ~(1 << (event.button.button - 1));
           break;
 
