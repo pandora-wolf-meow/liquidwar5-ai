@@ -185,6 +185,53 @@ lw_postfx_liquid_ripple (Uint32 * pixels, int w, int h, int pitch,
 }
 
 /*==================================================================*/
+/* Radial gradient vignette                                         */
+/*==================================================================*/
+
+void
+lw_postfx_vignette (Uint32 * pixels, int w, int h, int pitch,
+                     float strength)
+{
+  int x, y;
+  float cx = (w - 1) * 0.5f;
+  float cy = (h - 1) * 0.5f;
+  float max_d2 = cx * cx + cy * cy;
+
+  if (max_d2 <= 0.0f)
+    return;
+  if (strength < 0.0f)
+    strength = 0.0f;
+  if (strength > 1.0f)
+    strength = 1.0f;
+
+  for (y = 0; y < h; ++y)
+    {
+      Uint32 *row = pixels + y * pitch;
+      float dy = (float) y - cy;
+      float dy2 = dy * dy;
+      for (x = 0; x < w; ++x)
+        {
+          float dx = (float) x - cx;
+          float t = (dx * dx + dy2) / max_d2; /* 0 center, 1 corner */
+          /* smooth falloff: t^2 gives gentle interior, stronger at edges */
+          float falloff = t * t;
+          float scale = 1.0f - strength * falloff;
+          Uint32 p = row[x];
+          int r = (p >> 16) & 0xFF;
+          int g = (p >> 8) & 0xFF;
+          int b = p & 0xFF;
+          r = (int) (r * scale);
+          g = (int) (g * scale);
+          b = (int) (b * scale);
+          if (r < 0) r = 0;
+          if (g < 0) g = 0;
+          if (b < 0) b = 0;
+          row[x] = (255u << 24) | (r << 16) | (g << 8) | b;
+        }
+    }
+}
+
+/*==================================================================*/
 /* Masked liquid ripple - only affects army pixels                  */
 /*==================================================================*/
 

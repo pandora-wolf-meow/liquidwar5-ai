@@ -33,4 +33,12 @@ void lw_postfx_liquid_ripple_masked (Uint32 * pixels, int w, int h,
                                       unsigned char *index_map,
                                       int index_pitch, int min_index);
 
+/*
+ * Apply a radial gradient vignette that darkens the corners of the
+ * frame buffer. Strength is the darkening applied at the corners,
+ * e.g. 0.35 -> corners at ~65% brightness, center at 100%.
+ */
+void lw_postfx_vignette (Uint32 * pixels, int w, int h, int pitch,
+                          float strength);
+
 #endif

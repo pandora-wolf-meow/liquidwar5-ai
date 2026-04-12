@@ -2288,6 +2288,10 @@ lw_sdl_present_screen (void)
     /* Subtle battle frontline glow */
     lw_postfx_battle_glow (dst_pixels, screen->w, screen->h, dst_pitch,
                             15);
+
+    /* Cinematic radial vignette */
+    lw_postfx_vignette (dst_pixels, screen->w, screen->h, dst_pitch,
+                         0.35f);
   }
 
   SDL_UpdateTexture (lw_screen_texture, NULL, lw_convert_surface->pixels,
@@ -2295,6 +2299,14 @@ lw_sdl_present_screen (void)
   SDL_RenderClear (lw_sdl_renderer);
   SDL_RenderCopy (lw_sdl_renderer, lw_screen_texture, NULL, NULL);
   SDL_RenderPresent (lw_sdl_renderer);
+
+  /* DEBUG screenshot */
+  {
+    static int dbg_frame = 0;
+    dbg_frame++;
+    if (dbg_frame == 120)
+      SDL_SaveBMP (lw_convert_surface, "/tmp/x.bmp");
+  }
 }
 
 /*==================================================================*/
