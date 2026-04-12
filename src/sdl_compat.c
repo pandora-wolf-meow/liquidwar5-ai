@@ -1083,37 +1083,56 @@ void
 stretch_blit (BITMAP * src, BITMAP * dst, int sx, int sy, int sw, int sh,
               int dx, int dy, int dw, int dh)
 {
-  SDL_Rect srect, drect;
-
   if (!src || !dst || !src->sdl_surface || !dst->sdl_surface)
     return;
 
-  srect.x = sx;
-  srect.y = sy;
-  srect.w = sw;
-  srect.h = sh;
-
-  drect.x = dx;
-  drect.y = dy;
-  drect.w = dw;
-  drect.h = dh;
-
-  if (src->is_sub_bitmap)
+  /* For 8-bit to 8-bit, use manual nearest-neighbor scaling to preserve indices */
+  if (src->sdl_surface->format->BitsPerPixel == 8
+      && dst->sdl_surface->format->BitsPerPixel == 8)
     {
-      srect.x += src->sub_x;
-      srect.y += src->sub_y;
+      int x, y;
+      for (y = 0; y < dh; ++y)
+        for (x = 0; x < dw; ++x)
+          {
+            int src_x = sx + (x * sw) / dw;
+            int src_y = sy + (y * sh) / dh;
+            if (src_x >= 0 && src_x < src->w && src_y >= 0
+                && src_y < src->h)
+              putpixel (dst, dx + x, dy + y,
+                        getpixel (src, src_x, src_y));
+          }
     }
-  if (dst->is_sub_bitmap)
+  else
     {
-      drect.x += dst->sub_x;
-      drect.y += dst->sub_y;
-    }
+      SDL_Rect srect, drect;
 
-  SDL_BlitScaled (src->is_sub_bitmap ? src->parent->sdl_surface :
-                  src->sdl_surface,
-                  &srect,
-                  dst->is_sub_bitmap ? dst->parent->sdl_surface :
-                  dst->sdl_surface, &drect);
+      srect.x = sx;
+      srect.y = sy;
+      srect.w = sw;
+      srect.h = sh;
+
+      drect.x = dx;
+      drect.y = dy;
+      drect.w = dw;
+      drect.h = dh;
+
+      if (src->is_sub_bitmap)
+        {
+          srect.x += src->sub_x;
+          srect.y += src->sub_y;
+        }
+      if (dst->is_sub_bitmap)
+        {
+          drect.x += dst->sub_x;
+          drect.y += dst->sub_y;
+        }
+
+      SDL_BlitScaled (src->is_sub_bitmap ? src->parent->sdl_surface :
+                      src->sdl_surface,
+                      &srect,
+                      dst->is_sub_bitmap ? dst->parent->sdl_surface :
+                      dst->sdl_surface, &drect);
+    }
 }
 
 void
@@ -1551,8 +1570,9 @@ fade_out (int speed)
 void
 fade_in (const PALETTE pal, int speed)
 {
-  (void) pal;
   (void) speed;
+  /* Apply the target palette immediately */
+  set_palette ((RGB *) pal);
 }
 
 int
