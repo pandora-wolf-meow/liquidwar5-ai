@@ -70,6 +70,7 @@ static int lw_audio_initialized = 0;
 static SDL_Texture *lw_screen_texture = NULL;
 static int lw_screen_tex_w = 0, lw_screen_tex_h = 0;
 static SDL_Surface *lw_convert_surface = NULL;
+static Uint32 *lw_prev_frame = NULL;
 
 /* Keyboard modifier and GUI state */
 volatile int key_shifts = 0;
@@ -469,6 +470,11 @@ allegro_exit (void)
     }
   lw_timer_count = 0;
 
+  if (lw_prev_frame)
+    {
+      free (lw_prev_frame);
+      lw_prev_frame = NULL;
+    }
   if (lw_screen_texture)
     {
       SDL_DestroyTexture (lw_screen_texture);
@@ -2246,24 +2252,62 @@ lw_sdl_present_screen (void)
   if (!lw_screen_texture || !lw_convert_surface)
     return;
 
-  /* Fast manual palette lookup - convert 8-bit indexed to 32-bit ARGB */
+  /* Convert 8-bit indexed to 32-bit ARGB with temporal motion blur.
+   * Blend 75% current frame + 25% previous frame for smooth motion. */
   pal = screen->sdl_surface->format->palette;
   dst_pixels = (Uint32 *) lw_convert_surface->pixels;
   dst_pitch = lw_convert_surface->pitch / 4;
 
+  {
+    int total = screen->w * screen->h;
+
+    /* Allocate previous frame buffer if needed */
+    if (!lw_prev_frame)
+      {
+        lw_prev_frame = (Uint32 *) calloc (total, sizeof (Uint32));
+      }
+  }
+
   if (pal)
     {
+      int has_prev = (lw_prev_frame != NULL);
+
       for (y = 0; y < screen->h; ++y)
         {
           unsigned char *src_row = screen->line[y];
           Uint32 *dst_row = dst_pixels + y * dst_pitch;
+          int prev_off = y * screen->w;
+
           for (x = 0; x < screen->w; ++x)
             {
               SDL_Color *c = &pal->colors[src_row[x]];
-              dst_row[x] =
+              Uint32 cur =
                 (255u << 24) | (c->r << 16) | (c->g << 8) | c->b;
+
+              if (has_prev)
+                {
+                  /* 75% current + 25% previous */
+                  Uint32 prev = lw_prev_frame[prev_off + x];
+                  unsigned int pr = (prev >> 16) & 0xFF;
+                  unsigned int pg = (prev >> 8) & 0xFF;
+                  unsigned int pb = prev & 0xFF;
+                  unsigned int nr = (c->r * 3 + pr) >> 2;
+                  unsigned int ng = (c->g * 3 + pg) >> 2;
+                  unsigned int nb = (c->b * 3 + pb) >> 2;
+                  dst_row[x] = (255u << 24) | (nr << 16) | (ng << 8) | nb;
+                  lw_prev_frame[prev_off + x] = dst_row[x];
+                }
+              else
+                {
+                  dst_row[x] = cur;
+                }
             }
         }
+
+      /* First frame: seed the prev buffer */
+      if (!has_prev && lw_prev_frame)
+        memcpy (lw_prev_frame, dst_pixels,
+                screen->w * screen->h * sizeof (Uint32));
     }
 
   SDL_UpdateTexture (lw_screen_texture, NULL, lw_convert_surface->pixels,
