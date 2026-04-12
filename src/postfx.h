@@ -23,4 +23,14 @@ void lw_postfx_battle_glow (Uint32 * pixels, int w, int h, int pitch,
 void lw_postfx_liquid_ripple (Uint32 * pixels, int w, int h, int pitch,
                                float time, float amplitude);
 
+/*
+ * Liquid ripple that only affects pixels where the 8-bit index
+ * is >= min_index (i.e. army/team colors, not background).
+ */
+void lw_postfx_liquid_ripple_masked (Uint32 * pixels, int w, int h,
+                                      int pitch, float time,
+                                      float amplitude,
+                                      unsigned char *index_map,
+                                      int index_pitch, int min_index);
+
 #endif

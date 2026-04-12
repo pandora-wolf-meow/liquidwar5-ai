@@ -183,3 +183,59 @@ lw_postfx_liquid_ripple (Uint32 * pixels, int w, int h, int pitch,
         }
     }
 }
+
+/*==================================================================*/
+/* Masked liquid ripple - only affects army pixels                  */
+/*==================================================================*/
+
+void
+lw_postfx_liquid_ripple_masked (Uint32 * pixels, int w, int h, int pitch,
+                                 float time, float amplitude,
+                                 unsigned char *index_map,
+                                 int index_pitch, int min_index)
+{
+  static Uint32 *temp_buf = NULL;
+  static int temp_size = 0;
+  int x, y;
+
+  if (w * h > temp_size)
+    {
+      if (temp_buf)
+        free (temp_buf);
+      temp_buf = (Uint32 *) malloc (w * h * sizeof (Uint32));
+      temp_size = w * h;
+    }
+  if (!temp_buf || !index_map)
+    return;
+
+  /* Copy current frame */
+  for (y = 0; y < h; ++y)
+    memcpy (temp_buf + y * w, pixels + y * pitch, w * sizeof (Uint32));
+
+  /* Apply displacement only where palette index indicates army pixels */
+  for (y = 2; y < h - 2; ++y)
+    {
+      unsigned char *idx_row = index_map + y * index_pitch;
+
+      for (x = 2; x < w - 2; ++x)
+        {
+          /* Skip non-army pixels */
+          if (idx_row[x] < min_index)
+            continue;
+
+          /* Two overlapping sine waves for organic fluid look */
+          float dx =
+            amplitude * sinf (y * 0.04f + time * 2.0f) *
+            sinf (x * 0.03f + time * 0.8f);
+          float dy =
+            amplitude * sinf (x * 0.035f + time * 1.3f) *
+            cosf (y * 0.02f + time * 1.1f);
+
+          int sx = x + (int) dx;
+          int sy = y + (int) dy;
+
+          if (sx >= 0 && sx < w && sy >= 0 && sy < h)
+            pixels[y * pitch + x] = temp_buf[sy * w + sx];
+        }
+    }
+}

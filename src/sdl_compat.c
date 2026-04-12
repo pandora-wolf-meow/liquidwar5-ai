@@ -2316,13 +2316,15 @@ lw_sdl_present_screen (void)
     static float fx_time = 0.0f;
     fx_time += 0.016f;
 
-    /* Subtle liquid ripple distortion */
-    lw_postfx_liquid_ripple (dst_pixels, screen->w, screen->h, dst_pitch,
-                              fx_time, 1.2f);
+    /* Liquid ripple only on army areas (pass edge map from palette) */
+    lw_postfx_liquid_ripple_masked (dst_pixels, screen->w, screen->h,
+                                     dst_pitch, fx_time, 1.5f,
+                                     (unsigned char *) screen->sdl_surface->pixels,
+                                     screen->sdl_surface->pitch, 128);
 
-    /* Glowing battle frontlines */
+    /* Subtle battle frontline glow */
     lw_postfx_battle_glow (dst_pixels, screen->w, screen->h, dst_pitch,
-                            40);
+                            15);
   }
 
   SDL_UpdateTexture (lw_screen_texture, NULL, lw_convert_surface->pixels,
