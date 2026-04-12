@@ -394,32 +394,29 @@ load_dat (void)
       BACK_IMAGE = lw_disk_sdl_load_back ();
       if (BACK_IMAGE)
         {
-          /* Extract palette from the background image's SDL surface */
+          /* Extract full palette from the background image's SDL surface.
+           * The background uses all 256 palette entries. We copy them
+           * into GLOBAL_PALETTE so the menu displays correctly.
+           * During gameplay, set_playing_teams_palette will override
+           * entries 128-255 for team colors. */
           if (BACK_IMAGE->sdl_surface && BACK_IMAGE->sdl_surface->format->palette)
             {
               int pi;
               SDL_Palette *sp = BACK_IMAGE->sdl_surface->format->palette;
               for (pi = 0; pi < sp->ncolors && pi < 256; ++pi)
                 {
-                  back_pal[pi].r = sp->colors[pi].r / 4;
-                  back_pal[pi].g = sp->colors[pi].g / 4;
-                  back_pal[pi].b = sp->colors[pi].b / 4;
+                  GLOBAL_PALETTE[pi].r = sp->colors[pi].r / 4;
+                  GLOBAL_PALETTE[pi].g = sp->colors[pi].g / 4;
+                  GLOBAL_PALETTE[pi].b = sp->colors[pi].b / 4;
                 }
             }
-          /* Copy background palette into GLOBAL_PALETTE entries 18-63 */
-          {
-            int bi;
-            for (bi = 0; bi <= 45; ++bi)
-              GLOBAL_PALETTE[bi + 18] = back_pal[bi];
-          }
-          /* Shift pixel indices by +18 to match palette placement */
-          {
-            int bx, by;
-            for (by = 0; by < BACK_IMAGE->h; ++by)
-              for (bx = 0; bx < BACK_IMAGE->w; ++bx)
-                putpixel (BACK_IMAGE, bx, by,
-                          getpixel (BACK_IMAGE, bx, by) + 18);
-          }
+          /* Preserve menu FG/BG colors */
+          GLOBAL_PALETTE[MENU_BG].r = 0;
+          GLOBAL_PALETTE[MENU_BG].g = 0;
+          GLOBAL_PALETTE[MENU_BG].b = 10;
+          GLOBAL_PALETTE[MENU_FG].r = 63;
+          GLOBAL_PALETTE[MENU_FG].g = 63;
+          GLOBAL_PALETTE[MENU_FG].b = 63;
           LOADED_BACK = 1;
         }
       else

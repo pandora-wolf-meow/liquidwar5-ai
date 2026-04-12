@@ -2283,31 +2283,45 @@ lw_sdl_load_font (int size)
 /* Keyboard helper functions                                        */
 /*==================================================================*/
 
+/* Key event queue for keypressed/readkey compatibility */
+#define LW_KEY_QUEUE_SIZE 64
+static int lw_key_queue[LW_KEY_QUEUE_SIZE];
+static int lw_key_queue_head = 0;
+static int lw_key_queue_tail = 0;
+
+void
+lw_sdl_enqueue_key (int keyval)
+{
+  int next = (lw_key_queue_tail + 1) % LW_KEY_QUEUE_SIZE;
+  if (next != lw_key_queue_head)
+    {
+      lw_key_queue[lw_key_queue_tail] = keyval;
+      lw_key_queue_tail = next;
+    }
+}
+
 int
 keypressed (void)
 {
-  int i;
   lw_sdl_pump_events ();
-  for (i = 0; i < KEY_MAX; ++i)
-    if (key[i])
-      return 1;
-  return 0;
+  return lw_key_queue_head != lw_key_queue_tail;
 }
 
 int
 readkey (void)
 {
-  SDL_Event event;
-  while (1)
+  int val;
+
+  /* Wait for a key event to arrive */
+  while (lw_key_queue_head == lw_key_queue_tail)
     {
-      while (SDL_PollEvent (&event))
-        {
-          if (event.type == SDL_KEYDOWN)
-            return (event.key.keysym.scancode << 8) |
-              (event.key.keysym.sym & 0xFF);
-        }
+      lw_sdl_pump_events ();
       SDL_Delay (10);
     }
+
+  val = lw_key_queue[lw_key_queue_head];
+  lw_key_queue_head = (lw_key_queue_head + 1) % LW_KEY_QUEUE_SIZE;
+  return val;
 }
 
 void
@@ -2317,6 +2331,7 @@ clear_keybuf (void)
   while (SDL_PollEvent (&event))
     ;
   memset ((void *) key, 0, sizeof (key));
+  lw_key_queue_head = lw_key_queue_tail = 0;
 }
 
 /*==================================================================*/
@@ -2375,6 +2390,9 @@ lw_sdl_pump_events (void)
         case SDL_KEYDOWN:
           if (event.key.keysym.scancode < KEY_MAX)
             key[event.key.keysym.scancode] = 1;
+          /* Enqueue for keypressed/readkey */
+          lw_sdl_enqueue_key ((event.key.keysym.scancode << 8) |
+                              (event.key.keysym.sym & 0xFF));
           {
             SDL_Keymod mod = SDL_GetModState ();
             key_shifts = 0;
