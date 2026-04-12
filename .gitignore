@@ -33,3 +33,4 @@ doc/tex/*.toc
 doc/texi/*.texi
 doc/txt/*.txt
 __pycache__
+battle_*.csv
