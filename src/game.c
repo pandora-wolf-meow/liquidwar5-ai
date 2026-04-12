@@ -803,7 +803,7 @@ game (void)
       for (i = 0; i < NB_TEAMS; i++)
         printf (",team%d_fighters", i);
       printf (",ai_candidates,ai_density_radius,ai_density_weight"
-              ",ai_health_weight,ai_replan,ai_retreat\n");
+              ",ai_health_weight,ai_replan,ai_retreat,num_teams\n");
 
       {
         int winner = -1;
@@ -819,10 +819,17 @@ game (void)
         printf ("result,%d,%d", winner, GLOBAL_CLOCK);
         for (i = 0; i < NB_TEAMS; i++)
           printf (",%d", ACTIVE_FIGHTERS[i]);
-        printf (",%d,%d,%d,%d,%d,%d\n",
-                LW_AI_NUM_CANDIDATES, LW_AI_DENSITY_RADIUS,
-                LW_AI_DENSITY_WEIGHT, LW_AI_HEALTH_WEIGHT,
-                LW_AI_REPLAN_INTERVAL, LW_AI_RETREAT_RATIO);
+        {
+          int playing = 0;
+          for (i = 0; i < NB_TEAMS; i++)
+            if (CURRENT_CURSOR[i].active || ACTIVE_FIGHTERS[i] > 0)
+              playing++;
+          printf (",%d,%d,%d,%d,%d,%d,%d\n",
+                  LW_AI_NUM_CANDIDATES, LW_AI_DENSITY_RADIUS,
+                  LW_AI_DENSITY_WEIGHT, LW_AI_HEALTH_WEIGHT,
+                  LW_AI_REPLAN_INTERVAL, LW_AI_RETREAT_RATIO,
+                  playing);
+        }
       }
       fflush (stdout);
     }

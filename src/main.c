@@ -152,14 +152,23 @@ main (int argc, char **argv)
       if (STARTUP_HEADLESS)
         {
           int i;
+          int num_teams = NB_TEAMS;
 
           if (STARTUP_SEED >= 0)
             srandom (STARTUP_SEED);
 
+          if (exist_argument_value ("teams"))
+            {
+              num_teams = get_argument_int ("teams");
+              if (num_teams < 2)
+                num_teams = 2;
+              if (num_teams > NB_TEAMS)
+                num_teams = NB_TEAMS;
+            }
+
           for (i = 0; i < NB_TEAMS; i++)
-            CONFIG_CONTROL_TYPE[i] = CONFIG_CONTROL_TYPE_CPU;
-          CONFIG_CONTROL_TYPE[0] = CONFIG_CONTROL_TYPE_CPU;
-          CONFIG_CONTROL_TYPE[1] = CONFIG_CONTROL_TYPE_CPU;
+            CONFIG_CONTROL_TYPE[i] =
+              (i < num_teams) ? CONFIG_CONTROL_TYPE_CPU : CONFIG_CONTROL_TYPE_OFF;
 
           play_sequence ();
         }
