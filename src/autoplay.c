@@ -73,7 +73,7 @@
 #define LW_AUTOPLAY_FIGHTER_TRACK_INTERVAL 30
 
 /*==================================================================*/
-/* tunable AI parameters (settable via command line)                 */
+/* tunable AI parameters — per team, settable via command line       */
 /*==================================================================*/
 
 int LW_AI_NUM_CANDIDATES = 10;
@@ -82,6 +82,63 @@ int LW_AI_DENSITY_WEIGHT = 50;
 int LW_AI_HEALTH_WEIGHT = 100;
 int LW_AI_REPLAN_INTERVAL = 50;
 int LW_AI_RETREAT_RATIO = 20;
+
+LW_AI_PARAMS LW_AI_TEAM_PARAMS[NB_TEAMS];
+
+/*------------------------------------------------------------------*/
+void
+lw_ai_init_params (void)
+{
+  int i;
+  for (i = 0; i < NB_TEAMS; i++)
+    {
+      LW_AI_TEAM_PARAMS[i].candidates = LW_AI_NUM_CANDIDATES;
+      LW_AI_TEAM_PARAMS[i].density_radius = LW_AI_DENSITY_RADIUS;
+      LW_AI_TEAM_PARAMS[i].density_weight = LW_AI_DENSITY_WEIGHT;
+      LW_AI_TEAM_PARAMS[i].health_weight = LW_AI_HEALTH_WEIGHT;
+      LW_AI_TEAM_PARAMS[i].replan = LW_AI_REPLAN_INTERVAL;
+      LW_AI_TEAM_PARAMS[i].retreat = LW_AI_RETREAT_RATIO;
+    }
+}
+
+/*------------------------------------------------------------------*/
+int
+lw_ai_load_params_file (const char *path)
+{
+  FILE *fp;
+  int team, val;
+  char key[64];
+
+  fp = fopen (path, "r");
+  if (!fp)
+    return 0;
+
+  /*
+   * Simple format: one line per setting.
+   * "team candidates 0 15"  means team 0 candidates = 15
+   * "team density_weight 2 300" means team 2 density_weight = 300
+   */
+  while (fscanf (fp, "%63s %d %d", key, &team, &val) == 3)
+    {
+      if (team < 0 || team >= NB_TEAMS)
+        continue;
+      if (strcmp (key, "candidates") == 0)
+        LW_AI_TEAM_PARAMS[team].candidates = val;
+      else if (strcmp (key, "density_radius") == 0)
+        LW_AI_TEAM_PARAMS[team].density_radius = val;
+      else if (strcmp (key, "density_weight") == 0)
+        LW_AI_TEAM_PARAMS[team].density_weight = val;
+      else if (strcmp (key, "health_weight") == 0)
+        LW_AI_TEAM_PARAMS[team].health_weight = val;
+      else if (strcmp (key, "replan") == 0)
+        LW_AI_TEAM_PARAMS[team].replan = val;
+      else if (strcmp (key, "retreat") == 0)
+        LW_AI_TEAM_PARAMS[team].retreat = val;
+    }
+
+  fclose (fp);
+  return 1;
+}
 
 /*==================================================================*/
 /* variables globales                                               */
@@ -255,10 +312,12 @@ score_candidate (int cx, int cy, int health,
   int dist, density, health_score;
 
   dist = abs (cx - cursor_x) + abs (cy - cursor_y);
-  density = count_nearby_enemies (cx, cy, my_team, LW_AI_DENSITY_RADIUS);
+  density = count_nearby_enemies (cx, cy, my_team,
+                                  LW_AI_TEAM_PARAMS[my_team].density_radius);
   health_score = (MAX_FIGHTER_HEALTH - health);
 
-  return density * LW_AI_DENSITY_WEIGHT - dist + health_score / LW_AI_HEALTH_WEIGHT;
+  return density * LW_AI_TEAM_PARAMS[my_team].density_weight
+    - dist + health_score / LW_AI_TEAM_PARAMS[my_team].health_weight;
 }
 
 /*------------------------------------------------------------------*/
@@ -496,7 +555,7 @@ scored_target_selection (int *x, int *y, int team, int cursor,
   best_x = -1;
   best_y = -1;
 
-  for (j = 0; j < LW_AI_NUM_CANDIDATES; j++)
+  for (j = 0; j < LW_AI_TEAM_PARAMS[team].candidates; j++)
     {
       found = 0;
       for (i = 0; i < 100 && !found; i++)
@@ -533,7 +592,7 @@ scored_target_selection (int *x, int *y, int team, int cursor,
     }
   else
     {
-      for (j = 0; j < LW_AI_NUM_CANDIDATES; j++)
+      for (j = 0; j < LW_AI_TEAM_PARAMS[team].candidates; j++)
         {
           idx = random () % CURRENT_ARMY_SIZE;
           if (CURRENT_ARMY[idx].team != team)
@@ -585,7 +644,8 @@ get_computer_next_move (int cursor)
 
   if (COMPUTER_PATH_SIZE[cursor] > 0)
     {
-      if (GLOBAL_CLOCK % LW_AI_REPLAN_INTERVAL == 0)
+      if (LW_AI_TEAM_PARAMS[team].replan > 0
+          && GLOBAL_CLOCK % LW_AI_TEAM_PARAMS[team].replan == 0)
         COMPUTER_PATH_SIZE[cursor] = 0;
       else
         return COMPUTER_PATH_KEYS[cursor][--COMPUTER_PATH_SIZE[cursor]];
@@ -606,7 +666,7 @@ get_computer_next_move (int cursor)
                          && (COMPUTER_TEAM_FIGHTERS_PREV[team]
                              - COMPUTER_TEAM_FIGHTERS[team])
                          > COMPUTER_TEAM_FIGHTERS_PREV[team]
-                         / LW_AI_RETREAT_RATIO);
+                         / LW_AI_TEAM_PARAMS[team].retreat);
 
       if (losing_fighters)
         {

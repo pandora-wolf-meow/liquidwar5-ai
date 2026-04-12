@@ -55,18 +55,27 @@
 /* constantes                                                       */
 /*==================================================================*/
 
+#include "base.h"
+
 #define COMPUTER_PATH_MAX 1024
 
 /*==================================================================*/
 /* types                                                            */
 /*==================================================================*/
 
-/*==================================================================*/
-/* variables globales                                               */
-/*==================================================================*/
+typedef struct
+{
+  int candidates;
+  int density_radius;
+  int density_weight;
+  int health_weight;
+  int replan;
+  int retreat;
+}
+LW_AI_PARAMS;
 
 /*==================================================================*/
-/* fonctions globales                                               */
+/* variables globales                                               */
 /*==================================================================*/
 
 extern int LW_AI_NUM_CANDIDATES;
@@ -76,6 +85,14 @@ extern int LW_AI_HEALTH_WEIGHT;
 extern int LW_AI_REPLAN_INTERVAL;
 extern int LW_AI_RETREAT_RATIO;
 
+extern LW_AI_PARAMS LW_AI_TEAM_PARAMS[NB_TEAMS];
+
+/*==================================================================*/
+/* fonctions globales                                               */
+/*==================================================================*/
+
+void lw_ai_init_params (void);
+int lw_ai_load_params_file (const char *path);
 void reset_computer_path (void);
 void close_computer_path (void);
 char get_computer_next_move (int cursor);

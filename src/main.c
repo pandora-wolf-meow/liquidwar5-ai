@@ -59,6 +59,7 @@
 
 #include <stdio.h>
 
+#include "autoplay.h"
 #include "bigdata.h"
 #include "config.h"
 #include "disk.h"
@@ -169,6 +170,10 @@ main (int argc, char **argv)
           for (i = 0; i < NB_TEAMS; i++)
             CONFIG_CONTROL_TYPE[i] =
               (i < num_teams) ? CONFIG_CONTROL_TYPE_CPU : CONFIG_CONTROL_TYPE_OFF;
+
+          lw_ai_init_params ();
+          if (exist_argument_value ("ai-params-file"))
+            lw_ai_load_params_file (get_argument_str ("ai-params-file"));
 
           play_sequence ();
         }
