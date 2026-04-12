@@ -367,13 +367,7 @@ load_dat (void)
           GLOBAL_PALETTE[i].g = i * 4;
           GLOBAL_PALETTE[i].b = i * 4;
         }
-      /* Entries 18-63: default background gradient (dark blue to blue) */
-      for (i = 18; i <= 63; ++i)
-        {
-          GLOBAL_PALETTE[i].r = 0;
-          GLOBAL_PALETTE[i].g = (i - 18) / 3;
-          GLOBAL_PALETTE[i].b = (i - 18) * 63 / 45;
-        }
+      /* Entries 18-63 will be set from background image palette */
     }
 
     display_success (BIG_FONT != NULL || SMALL_FONT != NULL);
@@ -393,11 +387,41 @@ load_dat (void)
   /* Load background */
   if (STARTUP_BACK_STATE)
     {
+      PALETTE back_pal;
       log_print_str ("Loading background bitmap");
       log_flush ();
+      memset (back_pal, 0, sizeof (back_pal));
       BACK_IMAGE = lw_disk_sdl_load_back ();
       if (BACK_IMAGE)
-        LOADED_BACK = 1;
+        {
+          /* Extract palette from the background image's SDL surface */
+          if (BACK_IMAGE->sdl_surface && BACK_IMAGE->sdl_surface->format->palette)
+            {
+              int pi;
+              SDL_Palette *sp = BACK_IMAGE->sdl_surface->format->palette;
+              for (pi = 0; pi < sp->ncolors && pi < 256; ++pi)
+                {
+                  back_pal[pi].r = sp->colors[pi].r / 4;
+                  back_pal[pi].g = sp->colors[pi].g / 4;
+                  back_pal[pi].b = sp->colors[pi].b / 4;
+                }
+            }
+          /* Copy background palette into GLOBAL_PALETTE entries 18-63 */
+          {
+            int bi;
+            for (bi = 0; bi <= 45; ++bi)
+              GLOBAL_PALETTE[bi + 18] = back_pal[bi];
+          }
+          /* Shift pixel indices by +18 to match palette placement */
+          {
+            int bx, by;
+            for (by = 0; by < BACK_IMAGE->h; ++by)
+              for (bx = 0; bx < BACK_IMAGE->w; ++bx)
+                putpixel (BACK_IMAGE, bx, by,
+                          getpixel (BACK_IMAGE, bx, by) + 18);
+          }
+          LOADED_BACK = 1;
+        }
       else
         create_default_back ();
       display_success (BACK_IMAGE != NULL);
