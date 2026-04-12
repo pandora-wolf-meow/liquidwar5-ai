@@ -96,6 +96,7 @@ OBJ_NAMES = \
 	decal \
 	dialog \
 	disk \
+	disk_sdl \
 	disp \
 	distor \
 	dnsutil \

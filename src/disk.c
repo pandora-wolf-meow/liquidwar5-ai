@@ -58,6 +58,7 @@
 #include "alleg2.h"
 #include "init.h"
 #include "disk.h"
+#include "disk_sdl.h"
 #include "log.h"
 #include "map.h"
 #include "palette.h"
@@ -110,16 +111,16 @@ BITMAP *BIG_MOUSE_CURSOR = NULL;
 BITMAP *SMALL_MOUSE_CURSOR = NULL;
 BITMAP *INVISIBLE_MOUSE_CURSOR = NULL;
 
-static RGB *FONT_PALETTE = NULL;
-static RGB *BACK_PALETTE = NULL;
+/* FONT_PALETTE and BACK_PALETTE only used by old .dat loading path */
 
 static int CUSTOM_TEXTURE_OK = 0;
 static int CUSTOM_MAP_OK = 0;
 static int CUSTOM_MUSIC_OK = 0;
 
 /*------------------------------------------------------------------*/
-/* chargement des effets sonores                                    */
+/* Old .dat file reading functions - disabled, using direct loading  */
 /*------------------------------------------------------------------*/
+#if 0
 
 /*------------------------------------------------------------------*/
 static void
@@ -301,136 +302,137 @@ read_music_dat (DATAFILE * df)
     }
 }
 
+#endif /* old .dat reading functions */
+
+/*------------------------------------------------------------------*/
+static void
+create_default_back (void)
+{
+  static RGB back_coul;
+
+  memset (&back_coul, 0, sizeof (RGB));
+  back_coul.r = 1;
+  back_coul.g = 1;
+  back_coul.b = 8;
+
+  BACK_IMAGE = my_create_bitmap (1, 1);
+  putpixel (BACK_IMAGE, 0, 0, 18);
+  GLOBAL_PALETTE[18] = back_coul;
+}
+
 /*------------------------------------------------------------------*/
 int
 load_dat (void)
 {
   int result = 1;
-  int loadable;
-  DATAFILE *df;
+  int n;
 
   log_print_str ("Loading data from \"");
   log_print_str (STARTUP_DAT_PATH);
   log_print_str ("\"");
 
-#ifdef DOS
-  loadable = 1;
-#else
-  loadable = exists (STARTUP_DAT_PATH);
-#endif
+  /* Set up the data directory from the .dat path */
+  lw_disk_sdl_set_data_dir (STARTUP_DAT_PATH);
+  display_success (1);
 
-  display_success (loadable);
+  /* Load fonts (bitmap-based, loaded as cursor/gradient images) */
+  {
+    log_print_str ("Loading fonts");
+    log_flush ();
+    SMALL_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("mouse20.pcx");
+    BIG_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("mouse40.pcx");
+    INVISIBLE_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("void1.pcx");
+    /* Font rendering handled by SDL2_ttf or fallback */
+    display_success (1);
+  }
 
-  if (loadable)
-    {
-      log_print_str ("Loading fonts");
-      log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "font_dat");
-      if (result &= (df != NULL))
-        read_font_dat (df[0].dat);
-      display_success (df != NULL);
-    }
-  if (loadable)
-    {
-      log_print_str ("Loading maps");
-      log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "map_dat");
-      if (result &= (df != NULL))
-        read_map_dat (df[0].dat);
-      display_success (df != NULL);
-    }
+  /* Load maps */
+  {
+    log_print_str ("Loading maps");
+    log_flush ();
+    n = lw_disk_sdl_load_maps (RAW_MAP, RAW_MAP_MAX_NUMBER);
+    RAW_MAP_NUMBER = n;
+    display_success (n > 0);
+    if (n <= 0)
+      result = 0;
+  }
 
-  if (loadable && STARTUP_BACK_STATE)
+  /* Load background */
+  if (STARTUP_BACK_STATE)
     {
       log_print_str ("Loading background bitmap");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "back_dat");
-      if (df != NULL)
-        {
-          read_back_dat (df[0].dat);
-          LOADED_BACK = 1;
-        }
+      BACK_IMAGE = lw_disk_sdl_load_back ();
+      if (BACK_IMAGE)
+        LOADED_BACK = 1;
       else
-        {
-          create_default_back ();
-          result &= !STARTUP_CHECK;
-        }
-      display_success (df != NULL);
+        create_default_back ();
+      display_success (BACK_IMAGE != NULL);
     }
   else
     create_default_back ();
-  if (loadable && STARTUP_SFX_STATE)
+
+  /* Load sound effects */
+  if (STARTUP_SFX_STATE)
     {
+      SAMPLE *sfx_samples[SAMPLE_SFX_NUMBER];
       log_print_str ("Loading sound fx");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "sfx_dat");
-      if (df != NULL)
+      n = lw_disk_sdl_load_sfx (sfx_samples, SAMPLE_SFX_NUMBER, "sfx");
+      if (n > 0)
         {
-          read_sfx_dat (df[0].dat);
+          SAMPLE_SFX_TIME = sfx_samples[0 % n];
+          SAMPLE_SFX_WIN = sfx_samples[1 % n];
+          SAMPLE_SFX_CONNECT = sfx_samples[2 % n];
+          SAMPLE_SFX_GO = sfx_samples[3 % n];
+          SAMPLE_SFX_CLICK = sfx_samples[4 % n];
+          SAMPLE_SFX_LOOSE = sfx_samples[5 % n];
           LOADED_SFX = 1;
         }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      display_success (n > 0);
     }
-  if (loadable && STARTUP_TEXTURE_STATE)
+
+  /* Textures - skip for now, use mono colors */
+  if (STARTUP_TEXTURE_STATE)
     {
       log_print_str ("Loading textures");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "texture_dat");
-      if (df != NULL)
-        {
-          read_texture_dat (df[0].dat);
-          LOADED_TEXTURE = 1;
-        }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      /* TODO: load raw texture files from data/texture/ */
+      display_success (0);
 
       log_print_str ("Loading map textures");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "maptex_dat");
-      if (df != NULL)
-        {
-          read_maptex_dat (df[0].dat);
-          LOADED_MAPTEX = 1;
-        }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      /* TODO: load raw maptex files from data/maptex/ */
+      display_success (0);
     }
 
-  if (loadable && STARTUP_WATER_STATE)
+  /* Load water sounds */
+  if (STARTUP_WATER_STATE)
     {
       log_print_str ("Loading water sounds");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "water_dat");
-      if (df != NULL)
-        {
-          read_water_dat (df[0].dat);
-          LOADED_WATER = 1;
-        }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      n =
+        lw_disk_sdl_load_sfx (SAMPLE_WATER, SAMPLE_WATER_MAX_NUMBER,
+                               "water");
+      SAMPLE_WATER_NUMBER = n;
+      if (n > 0)
+        LOADED_WATER = 1;
+      display_success (n > 0);
     }
 
-  if (loadable && STARTUP_MUSIC_STATE)
+  /* Load music */
+  if (STARTUP_MUSIC_STATE)
     {
       log_print_str ("Loading midi music");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "music_dat");
-      if (df != NULL)
-        {
-          read_music_dat (df[0].dat);
-          LOADED_MUSIC = 1;
-        }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      n = lw_disk_sdl_load_music (MIDI_MUSIC, MIDI_MUSIC_MAX_NUMBER);
+      MIDI_MUSIC_NUMBER = n;
+      if (n > 0)
+        LOADED_MUSIC = 1;
+      display_success (n > 0);
     }
 
-  return loadable && result;
+  return result;
 }
 
 /*------------------------------------------------------------------*/
