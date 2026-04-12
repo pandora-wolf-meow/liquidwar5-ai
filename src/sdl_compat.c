@@ -9,6 +9,7 @@
 #include <math.h>
 
 #include "sdl_compat.h"
+#include "postfx.h"
 
 /*==================================================================*/
 /* Global state                                                     */
@@ -2309,6 +2310,20 @@ lw_sdl_present_screen (void)
         memcpy (lw_prev_frame, dst_pixels,
                 screen->w * screen->h * sizeof (Uint32));
     }
+
+  /* Apply post-processing effects on the 32-bit buffer */
+  {
+    static float fx_time = 0.0f;
+    fx_time += 0.016f;
+
+    /* Subtle liquid ripple distortion */
+    lw_postfx_liquid_ripple (dst_pixels, screen->w, screen->h, dst_pitch,
+                              fx_time, 1.2f);
+
+    /* Glowing battle frontlines */
+    lw_postfx_battle_glow (dst_pixels, screen->w, screen->h, dst_pitch,
+                            40);
+  }
 
   SDL_UpdateTexture (lw_screen_texture, NULL, lw_convert_surface->pixels,
                      lw_convert_surface->pitch);

@@ -147,6 +147,7 @@ OBJ_NAMES = \
 	options \
 	palette \
 	particles \
+	postfx \
 	parser \
 	path \
 	ping \
