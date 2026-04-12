@@ -82,6 +82,11 @@ int LW_AI_DENSITY_WEIGHT = 50;
 int LW_AI_HEALTH_WEIGHT = 100;
 int LW_AI_REPLAN_INTERVAL = 50;
 int LW_AI_RETREAT_RATIO = 20;
+int LW_AI_DISTANCE_WEIGHT = 10;
+int LW_AI_TARGET_WEAKEST = 0;
+int LW_AI_AGGRESSION = 50;
+int LW_AI_FRONTLINE_BIAS = 0;
+int LW_AI_CURSOR_MOMENTUM = 0;
 
 LW_AI_PARAMS LW_AI_TEAM_PARAMS[NB_TEAMS];
 
@@ -98,6 +103,11 @@ lw_ai_init_params (void)
       LW_AI_TEAM_PARAMS[i].health_weight = LW_AI_HEALTH_WEIGHT;
       LW_AI_TEAM_PARAMS[i].replan = LW_AI_REPLAN_INTERVAL;
       LW_AI_TEAM_PARAMS[i].retreat = LW_AI_RETREAT_RATIO;
+      LW_AI_TEAM_PARAMS[i].distance_weight = LW_AI_DISTANCE_WEIGHT;
+      LW_AI_TEAM_PARAMS[i].target_weakest = LW_AI_TARGET_WEAKEST;
+      LW_AI_TEAM_PARAMS[i].aggression = LW_AI_AGGRESSION;
+      LW_AI_TEAM_PARAMS[i].frontline_bias = LW_AI_FRONTLINE_BIAS;
+      LW_AI_TEAM_PARAMS[i].cursor_momentum = LW_AI_CURSOR_MOMENTUM;
     }
 }
 
@@ -134,6 +144,16 @@ lw_ai_load_params_file (const char *path)
         LW_AI_TEAM_PARAMS[team].replan = val;
       else if (strcmp (key, "retreat") == 0)
         LW_AI_TEAM_PARAMS[team].retreat = val;
+      else if (strcmp (key, "distance_weight") == 0)
+        LW_AI_TEAM_PARAMS[team].distance_weight = val;
+      else if (strcmp (key, "target_weakest") == 0)
+        LW_AI_TEAM_PARAMS[team].target_weakest = val;
+      else if (strcmp (key, "aggression") == 0)
+        LW_AI_TEAM_PARAMS[team].aggression = val;
+      else if (strcmp (key, "frontline_bias") == 0)
+        LW_AI_TEAM_PARAMS[team].frontline_bias = val;
+      else if (strcmp (key, "cursor_momentum") == 0)
+        LW_AI_TEAM_PARAMS[team].cursor_momentum = val;
     }
 
   fclose (fp);
@@ -150,6 +170,8 @@ static int COMPUTER_PATH_WAIT[NB_TEAMS];
 static int COMPUTER_TEAM_FIGHTERS[NB_TEAMS];
 static int COMPUTER_TEAM_FIGHTERS_PREV[NB_TEAMS];
 static int COMPUTER_FIGHTERS_LAST_CLOCK = -999;
+static int COMPUTER_PREV_TARGET_X[NB_TEAMS];
+static int COMPUTER_PREV_TARGET_Y[NB_TEAMS];
 
 /*==================================================================*/
 /* forward declarations                                             */
@@ -281,6 +303,33 @@ battle_log_close (void)
 /*==================================================================*/
 
 /*------------------------------------------------------------------*/
+static int COMPUTER_RETREAT_CLOCK[NB_TEAMS];
+
+/*------------------------------------------------------------------*/
+static int
+count_nearby_own (int cx, int cy, int my_team, int radius)
+{
+  int count = 0;
+  int x, y;
+  FIGHTER *f;
+
+  for (y = cy - radius; y <= cy + radius; y++)
+    {
+      if (y < 0 || y >= CURRENT_AREA_H)
+        continue;
+      for (x = cx - radius; x <= cx + radius; x++)
+        {
+          if (x < 0 || x >= CURRENT_AREA_W)
+            continue;
+          f = CURRENT_AREA[y * CURRENT_AREA_W + x].fighter;
+          if (f && f->team == my_team)
+            count++;
+        }
+    }
+  return count;
+}
+
+/*------------------------------------------------------------------*/
 static int
 count_nearby_enemies (int cx, int cy, int my_team, int radius)
 {
@@ -306,18 +355,67 @@ count_nearby_enemies (int cx, int cy, int my_team, int radius)
 
 /*------------------------------------------------------------------*/
 static int
-score_candidate (int cx, int cy, int health,
-                 int cursor_x, int cursor_y, int my_team)
+score_candidate (int cx, int cy, int health, int cand_team,
+                 int cursor_x, int cursor_y, int my_team,
+                 int prev_target_x, int prev_target_y)
 {
-  int dist, density, health_score;
+  int dist, density, health_score, score;
+  int own_nearby, frontline_score, momentum_score, weakness_score;
+  LW_AI_PARAMS *p = &LW_AI_TEAM_PARAMS[my_team];
 
   dist = abs (cx - cursor_x) + abs (cy - cursor_y);
-  density = count_nearby_enemies (cx, cy, my_team,
-                                  LW_AI_TEAM_PARAMS[my_team].density_radius);
+  density = count_nearby_enemies (cx, cy, my_team, p->density_radius);
   health_score = (MAX_FIGHTER_HEALTH - health);
 
-  return density * LW_AI_TEAM_PARAMS[my_team].density_weight
-    - dist + health_score / LW_AI_TEAM_PARAMS[my_team].health_weight;
+  score = density * p->density_weight
+    - dist * p->distance_weight / 10
+    + health_score / (p->health_weight > 0 ? p->health_weight : 1);
+
+  /*
+   * target_weakest: prefer fighters belonging to teams with fewer
+   * total fighters. Scale 0-100, where 100 means strongly prefer
+   * the weakest team.
+   */
+  if (p->target_weakest > 0 && cand_team >= 0 && cand_team < NB_TEAMS)
+    {
+      int team_size = COMPUTER_TEAM_FIGHTERS[cand_team];
+      int max_size = 1;
+      int i;
+      for (i = 0; i < NB_TEAMS; i++)
+        if (COMPUTER_TEAM_FIGHTERS[i] > max_size)
+          max_size = COMPUTER_TEAM_FIGHTERS[i];
+      weakness_score = (max_size - team_size) * p->target_weakest / 10;
+      score += weakness_score;
+    }
+
+  /*
+   * frontline_bias: prefer locations where our fighters are also
+   * nearby (the border/frontline). Scale 0-100.
+   */
+  if (p->frontline_bias > 0)
+    {
+      own_nearby = count_nearby_own (cx, cy, my_team, p->density_radius);
+      frontline_score = own_nearby * p->frontline_bias / 10;
+      score += frontline_score;
+    }
+
+  /*
+   * cursor_momentum: prefer targets in the same direction as the
+   * previous target. Scale 0-100.
+   */
+  if (p->cursor_momentum > 0 && prev_target_x >= 0)
+    {
+      int prev_dx = prev_target_x - cursor_x;
+      int prev_dy = prev_target_y - cursor_y;
+      int cand_dx = cx - cursor_x;
+      int cand_dy = cy - cursor_y;
+      /* Dot product as alignment measure */
+      int dot = prev_dx * cand_dx + prev_dy * cand_dy;
+      momentum_score = (dot > 0 ? 1 : -1) * p->cursor_momentum / 10;
+      score += momentum_score;
+    }
+
+  return score;
 }
 
 /*------------------------------------------------------------------*/
@@ -477,6 +575,9 @@ reset_computer_path (void)
       COMPUTER_PATH_WAIT[i] = 0;
       COMPUTER_TEAM_FIGHTERS[i] = 0;
       COMPUTER_TEAM_FIGHTERS_PREV[i] = 0;
+      COMPUTER_PREV_TARGET_X[i] = -1;
+      COMPUTER_PREV_TARGET_Y[i] = -1;
+      COMPUTER_RETREAT_CLOCK[i] = 0;
     }
   COMPUTER_FIGHTERS_LAST_CLOCK = -999;
   battle_log_init ();
@@ -565,8 +666,11 @@ scored_target_selection (int *x, int *y, int team, int cursor,
             {
               cand_score =
                 score_candidate (CURRENT_ARMY[idx].x, CURRENT_ARMY[idx].y,
-                                 CURRENT_ARMY[idx].health, cursor_x, cursor_y,
-                                 team);
+                                 CURRENT_ARMY[idx].health,
+                                 CURRENT_ARMY[idx].team,
+                                 cursor_x, cursor_y, team,
+                                 COMPUTER_PREV_TARGET_X[team],
+                                 COMPUTER_PREV_TARGET_Y[team]);
               if (pos < scores_out_size - 20)
                 pos += snprintf (scores_out + pos, scores_out_size - pos,
                                  "%s%d@%d;%d",
@@ -599,8 +703,11 @@ scored_target_selection (int *x, int *y, int team, int cursor,
             {
               cand_score =
                 score_candidate (CURRENT_ARMY[idx].x, CURRENT_ARMY[idx].y,
-                                 CURRENT_ARMY[idx].health, cursor_x, cursor_y,
-                                 team);
+                                 CURRENT_ARMY[idx].health,
+                                 CURRENT_ARMY[idx].team,
+                                 cursor_x, cursor_y, team,
+                                 COMPUTER_PREV_TARGET_X[team],
+                                 COMPUTER_PREV_TARGET_Y[team]);
               if (cand_score > best_score)
                 {
                   best_score = cand_score;
@@ -663,12 +770,23 @@ get_computer_next_move (int cursor)
   if ((--COMPUTER_PATH_WAIT[cursor]) < 0 || meme_equipe)
     {
       losing_fighters = (COMPUTER_TEAM_FIGHTERS_PREV[team] > 0
+                         && LW_AI_TEAM_PARAMS[team].retreat > 0
                          && (COMPUTER_TEAM_FIGHTERS_PREV[team]
                              - COMPUTER_TEAM_FIGHTERS[team])
                          > COMPUTER_TEAM_FIGHTERS_PREV[team]
                          / LW_AI_TEAM_PARAMS[team].retreat);
 
+      /*
+       * Aggression controls retreat duration. Higher aggression = shorter
+       * retreat. aggression=100 means never retreat (always attack).
+       * aggression=0 means retreat for a long time.
+       * The retreat lasts for (100 - aggression) ticks after triggered.
+       */
       if (losing_fighters)
+        COMPUTER_RETREAT_CLOCK[team] =
+          GLOBAL_CLOCK + (100 - LW_AI_TEAM_PARAMS[team].aggression);
+
+      if (GLOBAL_CLOCK < COMPUTER_RETREAT_CLOCK[team])
         {
           find_team_centroid (team, &x, &y);
           battle_log_decision (team, "retreat", x, y, 0, "");
@@ -682,6 +800,8 @@ get_computer_next_move (int cursor)
                                cand_scores);
         }
 
+      COMPUTER_PREV_TARGET_X[team] = x;
+      COMPUTER_PREV_TARGET_Y[team] = y;
       calculate_computer_path (x, y, cursor);
     }
 

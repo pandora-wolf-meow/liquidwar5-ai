@@ -71,6 +71,11 @@ typedef struct
   int health_weight;
   int replan;
   int retreat;
+  int distance_weight;
+  int target_weakest;
+  int aggression;
+  int frontline_bias;
+  int cursor_momentum;
 }
 LW_AI_PARAMS;
 
