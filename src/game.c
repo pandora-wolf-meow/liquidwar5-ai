@@ -802,9 +802,9 @@ game (void)
       printf ("result,winner,ticks");
       for (i = 0; i < NB_TEAMS; i++)
         printf (",team%d_fighters", i);
-      printf ("\n");
+      printf (",ai_candidates,ai_density_radius,ai_density_weight"
+              ",ai_health_weight,ai_replan,ai_retreat\n");
 
-      /* Find the winning team (most fighters remaining) */
       {
         int winner = -1;
         int max_fighters = 0;
@@ -819,7 +819,10 @@ game (void)
         printf ("result,%d,%d", winner, GLOBAL_CLOCK);
         for (i = 0; i < NB_TEAMS; i++)
           printf (",%d", ACTIVE_FIGHTERS[i]);
-        printf ("\n");
+        printf (",%d,%d,%d,%d,%d,%d\n",
+                LW_AI_NUM_CANDIDATES, LW_AI_DENSITY_RADIUS,
+                LW_AI_DENSITY_WEIGHT, LW_AI_HEALTH_WEIGHT,
+                LW_AI_REPLAN_INTERVAL, LW_AI_RETREAT_RATIO);
       }
       fflush (stdout);
     }

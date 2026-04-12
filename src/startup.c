@@ -57,6 +57,7 @@
 #include <string.h>
 
 #include "parser.h"
+#include "autoplay.h"
 #include "startup.h"
 #include "server.h"
 #include "macro.h"
@@ -495,6 +496,18 @@ set_startup (void)
     }
   if (exist_argument_value ("seed"))
     STARTUP_SEED = get_argument_int ("seed");
+  if (exist_argument_value ("ai-candidates"))
+    LW_AI_NUM_CANDIDATES = get_argument_int ("ai-candidates");
+  if (exist_argument_value ("ai-density-radius"))
+    LW_AI_DENSITY_RADIUS = get_argument_int ("ai-density-radius");
+  if (exist_argument_value ("ai-density-weight"))
+    LW_AI_DENSITY_WEIGHT = get_argument_int ("ai-density-weight");
+  if (exist_argument_value ("ai-health-weight"))
+    LW_AI_HEALTH_WEIGHT = get_argument_int ("ai-health-weight");
+  if (exist_argument_value ("ai-replan"))
+    LW_AI_REPLAN_INTERVAL = get_argument_int ("ai-replan");
+  if (exist_argument_value ("ai-retreat"))
+    LW_AI_RETREAT_RATIO = get_argument_int ("ai-retreat");
   set_bigdata_size ();
   set_metaserver ();
   set_misc ();

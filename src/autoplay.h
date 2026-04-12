@@ -69,6 +69,13 @@
 /* fonctions globales                                               */
 /*==================================================================*/
 
+extern int LW_AI_NUM_CANDIDATES;
+extern int LW_AI_DENSITY_RADIUS;
+extern int LW_AI_DENSITY_WEIGHT;
+extern int LW_AI_HEALTH_WEIGHT;
+extern int LW_AI_REPLAN_INTERVAL;
+extern int LW_AI_RETREAT_RATIO;
+
 void reset_computer_path (void);
 void close_computer_path (void);
 char get_computer_next_move (int cursor);

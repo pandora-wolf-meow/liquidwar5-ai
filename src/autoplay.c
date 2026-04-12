@@ -70,11 +70,18 @@
 /*==================================================================*/
 
 #define LW_AUTOPLAY_RANDOM_LIMIT 10000
-#define LW_AUTOPLAY_NUM_CANDIDATES 10
-#define LW_AUTOPLAY_DENSITY_RADIUS 5
-#define LW_AUTOPLAY_REPLAN_INTERVAL 50
-#define LW_AUTOPLAY_RETREAT_RATIO 20
 #define LW_AUTOPLAY_FIGHTER_TRACK_INTERVAL 30
+
+/*==================================================================*/
+/* tunable AI parameters (settable via command line)                 */
+/*==================================================================*/
+
+int LW_AI_NUM_CANDIDATES = 10;
+int LW_AI_DENSITY_RADIUS = 5;
+int LW_AI_DENSITY_WEIGHT = 50;
+int LW_AI_HEALTH_WEIGHT = 100;
+int LW_AI_REPLAN_INTERVAL = 50;
+int LW_AI_RETREAT_RATIO = 20;
 
 /*==================================================================*/
 /* variables globales                                               */
@@ -248,10 +255,10 @@ score_candidate (int cx, int cy, int health,
   int dist, density, health_score;
 
   dist = abs (cx - cursor_x) + abs (cy - cursor_y);
-  density = count_nearby_enemies (cx, cy, my_team, LW_AUTOPLAY_DENSITY_RADIUS);
+  density = count_nearby_enemies (cx, cy, my_team, LW_AI_DENSITY_RADIUS);
   health_score = (MAX_FIGHTER_HEALTH - health);
 
-  return density * 50 - dist + health_score / 100;
+  return density * LW_AI_DENSITY_WEIGHT - dist + health_score / LW_AI_HEALTH_WEIGHT;
 }
 
 /*------------------------------------------------------------------*/
@@ -489,7 +496,7 @@ scored_target_selection (int *x, int *y, int team, int cursor,
   best_x = -1;
   best_y = -1;
 
-  for (j = 0; j < LW_AUTOPLAY_NUM_CANDIDATES; j++)
+  for (j = 0; j < LW_AI_NUM_CANDIDATES; j++)
     {
       found = 0;
       for (i = 0; i < 100 && !found; i++)
@@ -526,7 +533,7 @@ scored_target_selection (int *x, int *y, int team, int cursor,
     }
   else
     {
-      for (j = 0; j < LW_AUTOPLAY_NUM_CANDIDATES; j++)
+      for (j = 0; j < LW_AI_NUM_CANDIDATES; j++)
         {
           idx = random () % CURRENT_ARMY_SIZE;
           if (CURRENT_ARMY[idx].team != team)
@@ -578,7 +585,7 @@ get_computer_next_move (int cursor)
 
   if (COMPUTER_PATH_SIZE[cursor] > 0)
     {
-      if (GLOBAL_CLOCK % LW_AUTOPLAY_REPLAN_INTERVAL == 0)
+      if (GLOBAL_CLOCK % LW_AI_REPLAN_INTERVAL == 0)
         COMPUTER_PATH_SIZE[cursor] = 0;
       else
         return COMPUTER_PATH_KEYS[cursor][--COMPUTER_PATH_SIZE[cursor]];
@@ -599,7 +606,7 @@ get_computer_next_move (int cursor)
                          && (COMPUTER_TEAM_FIGHTERS_PREV[team]
                              - COMPUTER_TEAM_FIGHTERS[team])
                          > COMPUTER_TEAM_FIGHTERS_PREV[team]
-                         / LW_AUTOPLAY_RETREAT_RATIO);
+                         / LW_AI_RETREAT_RATIO);
 
       if (losing_fighters)
         {
