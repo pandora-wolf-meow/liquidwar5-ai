@@ -818,11 +818,33 @@ game (void)
     {
       /*
        * Headless mode: run pure logic at max speed, no display or timing.
+       * Early-terminate once the outcome is decided so training games don't
+       * run the full ~24000-tick cap (which blows past the worker timeout).
+       * Checked every 500 ticks after tick 2000. The winner recorded in the
+       * result line is the team with the most ACTIVE_FIGHTERS, so breaking at
+       * >=60% dominance (or last team standing) records the same winner a
+       * natural end would, just sooner.
        */
       while ((PLAYING_TEAMS >= 2) && (TIME_LEFT > 0))
         {
           logic ();
           update_play_time ();
+
+          if (GLOBAL_CLOCK % 500 == 0 && GLOBAL_CLOCK > 2000)
+            {
+              int ei, total_f = 0, max_f = 0, alive = 0;
+              for (ei = 0; ei < NB_TEAMS; ei++)
+                {
+                  total_f += ACTIVE_FIGHTERS[ei];
+                  if (ACTIVE_FIGHTERS[ei] > max_f)
+                    max_f = ACTIVE_FIGHTERS[ei];
+                  if (ACTIVE_FIGHTERS[ei] > 0)
+                    alive++;
+                }
+              if (total_f > 0
+                  && (alive <= 1 || max_f * 100 / total_f >= 60))
+                break;
+            }
         }
     }
   else if (1)
