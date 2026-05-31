@@ -25,7 +25,6 @@ liquidwar-mapgen
 liquidwarcol
 liquidwarmap
 liquidwartex
-*.dat
 /misc/docker/tables.sql
 doc/tex/*.aux
 doc/tex/*.dvi
@@ -36,5 +35,3 @@ doc/texi/*.texi
 doc/txt/*.txt
 __pycache__
 battle_*.csv
-data/
-*.dat
