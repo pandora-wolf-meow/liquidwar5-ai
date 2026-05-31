@@ -54,7 +54,7 @@
 
 #include <stdlib.h>
 
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "network.h"
 #include "config.h"

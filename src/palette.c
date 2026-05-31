@@ -338,7 +338,9 @@ set_palette_for_choose_color (void)
 static void
 set_team_color (int teinte, int first, int num)
 {
-  int i, col, col_r, col_g, col_b, coeff, tot, last;
+  int i, last;
+  int col_r, col_g, col_b;
+  float t;
 
   last = first + num - 1;
 
@@ -347,16 +349,19 @@ set_team_color (int teinte, int first, int num)
   col_r = GLOBAL_PALETTE[last].r;
   col_g = GLOBAL_PALETTE[last].g;
   col_b = GLOBAL_PALETTE[last].b;
-  tot = 8 * num - 7;
-  for (i = 0; i < num - 1; ++i)
+
+  for (i = 0; i < num; ++i)
     {
-      coeff = num + 7 * i;
-      col = (col_r * coeff) / tot;
-      GLOBAL_PALETTE[first + i].r = col;
-      col = (col_g * coeff) / tot;
-      GLOBAL_PALETTE[first + i].g = col;
-      col = (col_b * coeff) / tot;
-      GLOBAL_PALETTE[first + i].b = col;
+      /* t goes from 0.0 (darkest/weakest) to 1.0 (brightest/healthiest) */
+      t = (float) i / (float) (num - 1);
+
+      /* Quadratic ramp for deeper darks, pure saturated brights.
+       * No white blend - keeps colors vivid. */
+      float curve = t * t;
+
+      GLOBAL_PALETTE[first + i].r = (int) (col_r * curve);
+      GLOBAL_PALETTE[first + i].g = (int) (col_g * curve);
+      GLOBAL_PALETTE[first + i].b = (int) (col_b * curve);
     }
 }
 

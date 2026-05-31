@@ -14,6 +14,8 @@ liquidwar.nsi
 liquidward
 macosx_info.plist
 Makefile.dep
+src/base.h
+src/lwwin.rc
 *.o
 *~
 *.tar.gz

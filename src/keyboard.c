@@ -52,7 +52,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "config.h"
 #include "joystick.h"
@@ -183,13 +183,9 @@ is_touched_key (int i)
       default:
 
 
-        if (i >= 128)
-          {
-            i -= 128;
-            retval = (key[i] & KB_EXTENDED) && ALLOWED_KEYBOARD_KEY[i];
-          }
-        else
-          retval = (key[i] & KB_NORMAL) && ALLOWED_KEYBOARD_KEY[i];
+        /* SDL2: key[] indexed by SDL scancode, treat as boolean */
+        if (i < KEY_MAX)
+          retval = key[i] && (i >= 128 || ALLOWED_KEYBOARD_KEY[i]);
 
       }
 

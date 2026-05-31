@@ -53,11 +53,12 @@
 /*==================================================================*/
 
 #include <string.h>
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "alleg2.h"
 #include "init.h"
 #include "disk.h"
+#include "disk_sdl.h"
 #include "log.h"
 #include "map.h"
 #include "palette.h"
@@ -110,16 +111,28 @@ BITMAP *BIG_MOUSE_CURSOR = NULL;
 BITMAP *SMALL_MOUSE_CURSOR = NULL;
 BITMAP *INVISIBLE_MOUSE_CURSOR = NULL;
 
-static RGB *FONT_PALETTE = NULL;
-static RGB *BACK_PALETTE = NULL;
+/* FONT_PALETTE and BACK_PALETTE only used by old .dat loading path */
 
 static int CUSTOM_TEXTURE_OK = 0;
 static int CUSTOM_MAP_OK = 0;
 static int CUSTOM_MUSIC_OK = 0;
 
+/* Saved background palette for restoring after gameplay */
+static PALETTE BACK_SAVED_PALETTE;
+
+void
+lw_restore_back_palette (void)
+{
+  int i;
+  for (i = 0; i < 256; ++i)
+    GLOBAL_PALETTE[i] = BACK_SAVED_PALETTE[i];
+  my_set_palette ();
+}
+
 /*------------------------------------------------------------------*/
-/* chargement des effets sonores                                    */
+/* Old .dat file reading functions - disabled, using direct loading  */
 /*------------------------------------------------------------------*/
+#if 0
 
 /*------------------------------------------------------------------*/
 static void
@@ -301,136 +314,253 @@ read_music_dat (DATAFILE * df)
     }
 }
 
+#endif /* old .dat reading functions */
+
+/*------------------------------------------------------------------*/
+static void
+create_default_back (void)
+{
+  static RGB back_coul;
+
+  memset (&back_coul, 0, sizeof (RGB));
+  back_coul.r = 1;
+  back_coul.g = 1;
+  back_coul.b = 8;
+
+  BACK_IMAGE = my_create_bitmap (1, 1);
+  putpixel (BACK_IMAGE, 0, 0, 18);
+  GLOBAL_PALETTE[18] = back_coul;
+}
+
 /*------------------------------------------------------------------*/
 int
 load_dat (void)
 {
   int result = 1;
-  int loadable;
-  DATAFILE *df;
+  int n;
 
   log_print_str ("Loading data from \"");
   log_print_str (STARTUP_DAT_PATH);
   log_print_str ("\"");
 
-#ifdef DOS
-  loadable = 1;
-#else
-  loadable = exists (STARTUP_DAT_PATH);
-#endif
+  /* Set up the data directory from the .dat path */
+  lw_disk_sdl_set_data_dir (STARTUP_DAT_PATH);
+  display_success (1);
 
-  display_success (loadable);
+  /* Load fonts and cursors */
+  {
+    log_print_str ("Loading fonts");
+    log_flush ();
+    SMALL_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("mouse20.pcx");
+    BIG_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("mouse40.pcx");
+    INVISIBLE_MOUSE_CURSOR = lw_disk_sdl_load_font_bitmap ("void1.pcx");
+    SMALL_FONT = lw_sdl_load_font (10);
+    BIG_FONT = lw_sdl_load_font (16);
+    if (!SMALL_FONT)
+      SMALL_FONT = lw_sdl_load_font (8);
+    if (!BIG_FONT)
+      BIG_FONT = lw_sdl_load_font (12);
 
-  if (loadable)
+    /* Set up default menu palette entries since we don't load from .dat */
     {
-      log_print_str ("Loading fonts");
-      log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "font_dat");
-      if (result &= (df != NULL))
-        read_font_dat (df[0].dat);
-      display_success (df != NULL);
+      int i;
+      /* Entry 16 = MENU_BG (dark blue background) */
+      GLOBAL_PALETTE[16].r = 0;
+      GLOBAL_PALETTE[16].g = 0;
+      GLOBAL_PALETTE[16].b = 10;
+      /* Entry 17 = MENU_FG (white foreground) */
+      GLOBAL_PALETTE[17].r = 63;
+      GLOBAL_PALETTE[17].g = 63;
+      GLOBAL_PALETTE[17].b = 63;
+      /* Entries 1-15: grayscale ramp for general UI */
+      for (i = 1; i <= 15; ++i)
+        {
+          GLOBAL_PALETTE[i].r = i * 4;
+          GLOBAL_PALETTE[i].g = i * 4;
+          GLOBAL_PALETTE[i].b = i * 4;
+        }
+      /* Entries 18-63 will be set from background image palette */
     }
-  if (loadable)
-    {
-      log_print_str ("Loading maps");
-      log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "map_dat");
-      if (result &= (df != NULL))
-        read_map_dat (df[0].dat);
-      display_success (df != NULL);
-    }
 
-  if (loadable && STARTUP_BACK_STATE)
+    display_success (BIG_FONT != NULL || SMALL_FONT != NULL);
+  }
+
+  /* Load maps */
+  {
+    log_print_str ("Loading maps");
+    log_flush ();
+    n = lw_disk_sdl_load_maps (RAW_MAP, RAW_MAP_MAX_NUMBER);
+    RAW_MAP_NUMBER = n;
+    display_success (n > 0);
+    if (n <= 0)
+      result = 0;
+  }
+
+  /* Load background */
+  if (STARTUP_BACK_STATE)
     {
+      PALETTE back_pal;
       log_print_str ("Loading background bitmap");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "back_dat");
-      if (df != NULL)
+      memset (back_pal, 0, sizeof (back_pal));
+      BACK_IMAGE = lw_disk_sdl_load_back ();
+      if (BACK_IMAGE)
         {
-          read_back_dat (df[0].dat);
+          /* Extract full palette from the background image's SDL surface.
+           * The background uses all 256 palette entries. We copy them
+           * into GLOBAL_PALETTE so the menu displays correctly.
+           * During gameplay, set_playing_teams_palette will override
+           * entries 128-255 for team colors. */
+          if (BACK_IMAGE->sdl_surface && BACK_IMAGE->sdl_surface->format->palette)
+            {
+              int pi;
+              SDL_Palette *sp = BACK_IMAGE->sdl_surface->format->palette;
+              for (pi = 0; pi < sp->ncolors && pi < 256; ++pi)
+                {
+                  GLOBAL_PALETTE[pi].r = sp->colors[pi].r / 4;
+                  GLOBAL_PALETTE[pi].g = sp->colors[pi].g / 4;
+                  GLOBAL_PALETTE[pi].b = sp->colors[pi].b / 4;
+                }
+            }
+          /* Remap background pixels away from palette entries 0-17
+           * (reserved for menu UI). Find the closest color in entries
+           * 18-255 for each pixel that uses 0-17. */
+          {
+            int bx, by, pi;
+            unsigned char remap[18];
+            for (pi = 0; pi < 18; ++pi)
+              {
+                /* Find closest color in entries 18-255 */
+                int best = 18, best_dist = 0x7FFFFFFF;
+                int pr = GLOBAL_PALETTE[pi].r;
+                int pg = GLOBAL_PALETTE[pi].g;
+                int pb = GLOBAL_PALETTE[pi].b;
+                int ci;
+                for (ci = 18; ci < 256; ++ci)
+                  {
+                    int dr = GLOBAL_PALETTE[ci].r - pr;
+                    int dg = GLOBAL_PALETTE[ci].g - pg;
+                    int db = GLOBAL_PALETTE[ci].b - pb;
+                    int dist = dr * dr + dg * dg + db * db;
+                    if (dist < best_dist)
+                      {
+                        best_dist = dist;
+                        best = ci;
+                      }
+                  }
+                remap[pi] = best;
+              }
+            for (by = 0; by < BACK_IMAGE->h; ++by)
+              for (bx = 0; bx < BACK_IMAGE->w; ++bx)
+                {
+                  int px = getpixel (BACK_IMAGE, bx, by);
+                  if (px < 18)
+                    putpixel (BACK_IMAGE, bx, by, remap[px]);
+                }
+          }
+          /* Now set menu palette entries */
+          GLOBAL_PALETTE[MENU_BG].r = 0;
+          GLOBAL_PALETTE[MENU_BG].g = 0;
+          GLOBAL_PALETTE[MENU_BG].b = 10;
+          GLOBAL_PALETTE[MENU_FG].r = 63;
+          GLOBAL_PALETTE[MENU_FG].g = 63;
+          GLOBAL_PALETTE[MENU_FG].b = 63;
+          /* Grayscale ramp for UI elements */
+          {
+            int gi;
+            for (gi = 1; gi <= 15; ++gi)
+              {
+                GLOBAL_PALETTE[gi].r = gi * 4;
+                GLOBAL_PALETTE[gi].g = gi * 4;
+                GLOBAL_PALETTE[gi].b = gi * 4;
+              }
+          }
           LOADED_BACK = 1;
+          /* Save the full palette so we can restore it after gameplay */
+          {
+            int si;
+            for (si = 0; si < 256; ++si)
+              BACK_SAVED_PALETTE[si] = GLOBAL_PALETTE[si];
+          }
         }
       else
-        {
-          create_default_back ();
-          result &= !STARTUP_CHECK;
-        }
-      display_success (df != NULL);
+        create_default_back ();
+      display_success (BACK_IMAGE != NULL);
     }
   else
     create_default_back ();
-  if (loadable && STARTUP_SFX_STATE)
+
+  /* Load sound effects */
+  if (STARTUP_SFX_STATE)
     {
+      SAMPLE *sfx_samples[SAMPLE_SFX_NUMBER];
       log_print_str ("Loading sound fx");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "sfx_dat");
-      if (df != NULL)
+      n = lw_disk_sdl_load_sfx (sfx_samples, SAMPLE_SFX_NUMBER, "sfx");
+      if (n > 0)
         {
-          read_sfx_dat (df[0].dat);
+          SAMPLE_SFX_TIME = sfx_samples[0 % n];
+          SAMPLE_SFX_WIN = sfx_samples[1 % n];
+          SAMPLE_SFX_CONNECT = sfx_samples[2 % n];
+          SAMPLE_SFX_GO = sfx_samples[3 % n];
+          SAMPLE_SFX_CLICK = sfx_samples[4 % n];
+          SAMPLE_SFX_LOOSE = sfx_samples[5 % n];
           LOADED_SFX = 1;
         }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      display_success (n > 0);
     }
-  if (loadable && STARTUP_TEXTURE_STATE)
+
+  /* Load textures from PCX files */
+  if (STARTUP_TEXTURE_STATE)
     {
       log_print_str ("Loading textures");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "texture_dat");
-      if (df != NULL)
-        {
-          read_texture_dat (df[0].dat);
-          LOADED_TEXTURE = 1;
-        }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      n =
+        lw_disk_sdl_load_textures (RAW_TEXTURE, RAW_TEXTURE_MAX_NUMBER,
+                                    "texture");
+      RAW_TEXTURE_NUMBER = n;
+      if (n > 0)
+        LOADED_TEXTURE = 1;
+      display_success (n > 0);
 
       log_print_str ("Loading map textures");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "maptex_dat");
-      if (df != NULL)
-        {
-          read_maptex_dat (df[0].dat);
-          LOADED_MAPTEX = 1;
-        }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      n =
+        lw_disk_sdl_load_textures (RAW_MAPTEX, RAW_TEXTURE_MAX_NUMBER,
+                                    "maptex");
+      RAW_MAPTEX_NUMBER = n;
+      if (n > 0)
+        LOADED_MAPTEX = 1;
+      display_success (n > 0);
     }
 
-  if (loadable && STARTUP_WATER_STATE)
+  /* Load water sounds */
+  if (STARTUP_WATER_STATE)
     {
       log_print_str ("Loading water sounds");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "water_dat");
-      if (df != NULL)
-        {
-          read_water_dat (df[0].dat);
-          LOADED_WATER = 1;
-        }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      n =
+        lw_disk_sdl_load_sfx (SAMPLE_WATER, SAMPLE_WATER_MAX_NUMBER,
+                               "water");
+      SAMPLE_WATER_NUMBER = n;
+      if (n > 0)
+        LOADED_WATER = 1;
+      display_success (n > 0);
     }
 
-  if (loadable && STARTUP_MUSIC_STATE)
+  /* Load music */
+  if (STARTUP_MUSIC_STATE)
     {
       log_print_str ("Loading midi music");
       log_flush ();
-      df = load_datafile_object (STARTUP_DAT_PATH, "music_dat");
-      if (df != NULL)
-        {
-          read_music_dat (df[0].dat);
-          LOADED_MUSIC = 1;
-        }
-      else
-        result &= !STARTUP_CHECK;
-      display_success (df != NULL);
+      n = lw_disk_sdl_load_music (MIDI_MUSIC, MIDI_MUSIC_MAX_NUMBER);
+      MIDI_MUSIC_NUMBER = n;
+      if (n > 0)
+        LOADED_MUSIC = 1;
+      display_success (n > 0);
     }
 
-  return loadable && result;
+  return result;
 }
 
 /*------------------------------------------------------------------*/

@@ -71,7 +71,7 @@ typedef char *(*my_getfuncptr) (int, int *);
 extern void _draw_scrollable_frame (DIALOG * d,
                                     int listsize, int offset, int height,
                                     int fg_color, int bg);
-extern int isspace (int c);
+/* isspace is provided by <ctype.h> via sdl_compat.h */
 
 static void my_handle_scrollable_scroll_click (DIALOG * d, int listsize,
                                                int *offset, int height);
@@ -524,41 +524,74 @@ my_button_proc (int msg, DIALOG * d, int c)
     {
 
     case MSG_DRAW:
-      if (d->flags & D_SELECTED)
-        {
-          g = 1;
-          state1 = d->bg;
-          state2 = (d->flags & D_DISABLED) ? gui_mg_color : d->fg;
-        }
-      else
-        {
-          g = 0;
-          state1 = (d->flags & D_DISABLED) ? gui_mg_color : d->fg;
-          state2 = d->bg;
-        }
+      {
+        int hover = (d->flags & D_GOTMOUSE) ? 1 : 0;
+        int highlight_color = 15;   /* bright gray from palette */
+        int mid_color = 10;         /* medium gray from palette */
 
-      rectfill (gui_bmp, d->x + 1 + g, d->y + 1 + g, d->x + d->w - 3 + g,
-                d->y + d->h - 3 + g, state2);
-      rect (gui_bmp, d->x + g, d->y + g, d->x + d->w - 2 + g,
-            d->y + d->h - 2 + g, state1);
-      //gui_textout_ex(gui_bmp, d->dp, d->x+d->w/2+g, d->y+d->h/2-text_height(font)/2+g, state1, -1, TRUE);
-      gui_textout_ex (gui_bmp, d->dp, d->x + d->w / 2 + g, d->y + d->h / 2 - text_height (font) / 2 + g, -1, -1, TRUE); // ufoot
+        if (d->flags & D_SELECTED)
+          {
+            g = 1;
+            state1 = d->bg;
+            state2 = (d->flags & D_DISABLED) ? gui_mg_color : d->fg;
+          }
+        else
+          {
+            /* 3-step eased hover transition driven by d->d2 (0..255) */
+            int hv = d->d2;
+            g = 0;
+            state1 = (d->flags & D_DISABLED) ? gui_mg_color : d->fg;
+            if (hv >= 192)
+              state2 = highlight_color;
+            else if (hv >= 64)
+              state2 = mid_color;
+            else
+              state2 = d->bg;
+            /* keep click-tracking loop's snap highlight working */
+            if (hover && hv < 64)
+              state2 = mid_color;
+          }
 
-      if (d->flags & D_SELECTED)
-        {
-          vline (gui_bmp, d->x, d->y, d->y + d->h - 2, d->bg);
-          hline (gui_bmp, d->x, d->y, d->x + d->w - 2, d->bg);
-        }
-      else
-        {
-          black = makecol (0, 0, 0);
-          vline (gui_bmp, d->x + d->w - 1, d->y + 1, d->y + d->h - 2, black);
-          hline (gui_bmp, d->x + 1, d->y + d->h - 1, d->x + d->w - 1, black);
-        }
-      if ((d->flags & D_GOTFOCUS) &&
-          (!(d->flags & D_SELECTED) || !(d->flags & D_EXIT)))
-        my_dotted_rect (d->x + 1 + g, d->y + 1 + g, d->x + d->w - 3 + g,
-                        d->y + d->h - 3 + g, state1, state2);
+        /* Drop shadow: dark offset rect drawn before the fill */
+        rectfill (gui_bmp, d->x + 2 + g, d->y + 2 + g,
+                  d->x + d->w - 1 + g, d->y + d->h - 1 + g, 0);
+
+        /* Button fill */
+        rectfill (gui_bmp, d->x + 1 + g, d->y + 1 + g,
+                  d->x + d->w - 3 + g, d->y + d->h - 3 + g, state2);
+        /* Border */
+        rect (gui_bmp, d->x + g, d->y + g, d->x + d->w - 2 + g,
+              d->y + d->h - 2 + g, state1);
+
+        /* Text with drop shadow */
+        gui_textout_ex (gui_bmp, d->dp, d->x + d->w / 2 + g + 1,
+                        d->y + d->h / 2 - text_height (font) / 2 + g + 1,
+                        0, -1, TRUE);
+        gui_textout_ex (gui_bmp, d->dp, d->x + d->w / 2 + g,
+                        d->y + d->h / 2 - text_height (font) / 2 + g,
+                        hover ? 0 : -1, -1, TRUE);
+
+        /* 3D shadow edges */
+        if (d->flags & D_SELECTED)
+          {
+            vline (gui_bmp, d->x, d->y, d->y + d->h - 2, d->bg);
+            hline (gui_bmp, d->x, d->y, d->x + d->w - 2, d->bg);
+          }
+        else
+          {
+            black = makecol (0, 0, 0);
+            vline (gui_bmp, d->x + d->w - 1, d->y + 1, d->y + d->h - 2,
+                   black);
+            hline (gui_bmp, d->x + 1, d->y + d->h - 1, d->x + d->w - 1,
+                   black);
+            /* Top-left highlight for 3D effect */
+            if (!hover)
+              {
+                vline (gui_bmp, d->x, d->y, d->y + d->h - 2, 10);
+                hline (gui_bmp, d->x, d->y, d->x + d->w - 2, 10);
+              }
+          }
+      }
       break;
 
     case MSG_WANTFOCUS:
@@ -636,6 +669,7 @@ my_text_proc (int msg, DIALOG * d, int c)
         font = d->dp2;
 
       //gui_textout_ex(gui_get_screen(), d->dp, d->x, d->y, fg, d->bg, FALSE);
+      gui_textout_ex (gui_get_screen (), d->dp, d->x + 1, d->y + 1, 0, -1, FALSE);
       gui_textout_ex (gui_get_screen (), d->dp, d->x, d->y, -1, d->bg, FALSE);  // ufoot
 
       font = oldfont;
@@ -663,6 +697,7 @@ my_ctext_proc (int msg, DIALOG * d, int c)
         font = d->dp2;
 
       //gui_textout_ex(gui_get_screen(), d->dp, d->x + d->w/2, d->y, fg, d->bg, TRUE);
+      gui_textout_ex (gui_get_screen (), d->dp, d->x + d->w / 2 + 1, d->y + 1, 0, -1, TRUE);
       gui_textout_ex (gui_get_screen (), d->dp, d->x + d->w / 2, d->y, -1, d->bg, TRUE);        // ufoot
 
       font = oldfont;

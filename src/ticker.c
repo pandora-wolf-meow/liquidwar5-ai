@@ -52,7 +52,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "ticker.h"
 
@@ -60,61 +60,30 @@
 /* variables globales                                               */
 /*==================================================================*/
 
-#ifdef DOS
-#define TICKER_STEP 5
-#else
-#define TICKER_STEP 10
-#endif
-static int TICKER_VALUE = 0;
+static Uint32 TICKER_OFFSET = 0;
 
 /*==================================================================*/
 /* fonctions                                                        */
 /*==================================================================*/
 
-
-/*------------------------------------------------------------------*/
-/* mise en place du chrono                                          */
-/*------------------------------------------------------------------*/
-
-/*------------------------------------------------------------------*/
-static void
-ticker_handler (void)
-{
-  TICKER_VALUE += TICKER_STEP;
-}
-
-END_OF_FUNCTION (ticker_handler);
-
 /*------------------------------------------------------------------*/
 int
 start_ticker (void)
 {
-  int result = 0;
-  //#ifdef DOS
-  LOCK_FUNCTION (ticker_handler);
-  LOCK_VARIABLE (TICKER_VALUE);
-
-  result = install_int_ex (ticker_handler, MSEC_TO_TIMER (TICKER_STEP));
-  //#endif
-  return result;
+  TICKER_OFFSET = SDL_GetTicks ();
+  return 0;
 }
 
 /*------------------------------------------------------------------*/
 void
 stop_ticker (void)
 {
-  //#ifdef DOS
-  remove_int (ticker_handler);
-  //#endif
+  /* Nothing to clean up with SDL_GetTicks */
 }
 
 /*------------------------------------------------------------------*/
 int
 get_ticker (void)
 {
-  //#ifdef DOS
-  return TICKER_VALUE;
-  //#else
-  //return ++TICKER_VALUE;
-  //#endif
+  return (int) (SDL_GetTicks () - TICKER_OFFSET);
 }

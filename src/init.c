@@ -52,7 +52,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
-#include <allegro.h>
+#include "sdl_compat.h"
 #include <stdlib.h>
 #include <string.h>
 #ifdef DOS
@@ -130,7 +130,7 @@ init_all ()
   if (STARTUP_HEADLESS)
     {
       /*
-       * In headless mode on Linux, Allegro needs an X display to init.
+       * In headless mode on Linux, SDL still needs an X display to init.
        * If DISPLAY is not set, start a virtual framebuffer with Xvfb.
        */
 #ifdef UNIX
@@ -151,7 +151,7 @@ init_all ()
 #endif
     }
 
-  log_print_str ("Starting Allegro (http://www.talula.demon.co.uk/allegro)");
+  log_print_str ("Starting SDL2 (https://www.libsdl.org/)");
   display_success (graphics = !allegro_init ());
   log_println ();
 
@@ -159,10 +159,7 @@ init_all ()
     {
       LW_INIT_ALLEGRO_OK = 1;
 
-#ifdef DOS
-      set_gfx_mode (GFX_TEXT, 0, 0, 0, 0);
-#endif
-      log_print_str ("Allegro ID : ");
+      log_print_str ("SDL2 version : ");
       log_println_str (allegro_id);
       log_println ();
 

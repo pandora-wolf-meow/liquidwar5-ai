@@ -60,6 +60,8 @@
 #include "cursor.h"
 #include "mesh.h"
 #include "palette.h"
+#include "particles.h"
+#include "decal.h"
 
 /*==================================================================*/
 /* variables globales                                               */
@@ -153,6 +155,9 @@ apply_all_cursor (void)
 {
   int i, x, y;
   MESH *temp;
+  static int prev_x[NB_TEAMS];
+  static int prev_y[NB_TEAMS];
+  static int prev_valid[NB_TEAMS];
 
   /*
    * loop for all the active cursors
@@ -165,6 +170,25 @@ apply_all_cursor (void)
          */
         x = CURRENT_CURSOR[i].x;
         y = CURRENT_CURSOR[i].y;
+        /*
+         * spawn a trail GLOW particle at the previous position when
+         * the cursor actually moved
+         */
+        if (prev_valid[i])
+          {
+            int dx = x - prev_x[i];
+            int dy = y - prev_y[i];
+            if (dx * dx + dy * dy >= 1)
+              {
+                int team = CURRENT_CURSOR[i].team;
+                int color = COLOR_FIRST_ENTRY[team] + COLORS_PER_TEAM - 1;
+                lw_particles_spawn ((float) prev_x[i], (float) prev_y[i],
+                                    1, color, LW_PARTICLE_GLOW);
+              }
+          }
+        prev_x[i] = x;
+        prev_y[i] = y;
+        prev_valid[i] = 1;
         /*
          * sanity check, in case the cursor is not on a valid part
          * of the map. It should not happen but I hate protection

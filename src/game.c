@@ -57,11 +57,13 @@
 #ifdef UNIX
 #include <unistd.h>
 #endif
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "area.h"
 #include "autoplay.h"
 #include "back.h"
+#include "palette.h"
+#include "particles.h"
 #include "army.h"
 #include "bigdata.h"
 #include "config.h"
@@ -234,10 +236,14 @@ check_loose_team (void)
        */
       play_loose ();
       /*
-       * remove the team from the info bar, so that room if freed for 
+       * remove the team from the info bar, so that room if freed for
        * other teams
        */
       free_info_bar ();
+      /*
+       * juice: big shake when a team is eliminated
+       */
+      lw_sdl_trigger_shake (8.0f);
     }
 
   return (lost);
@@ -471,9 +477,10 @@ blank_round (void)
        */
       init_distorsion_displayer ();
       /*
-       * prepares the basic layer for the first buffer
+       * prepares the basic layer - clear to dark background
        */
-      display_back_image ();
+      if (screen)
+        clear_to_color (screen, MENU_BG);
       rect_for_viewport ();
       /*
        * displays the map in the previously defined layer
@@ -488,7 +495,8 @@ blank_round (void)
       /*
        * prepares the basic layer for the second buffer
        */
-      display_back_image ();
+      if (screen)
+        clear_to_color (screen, MENU_BG);
       rect_for_viewport ();
       /*
        * clean up message queue
@@ -506,6 +514,58 @@ blank_round (void)
  * can display the map or special screens if we are in some
  * sort of debug mode
  */
+/*------------------------------------------------------------------*/
+/*
+ * spawn particles at battle frontlines where different teams meet
+ */
+static void __attribute__((unused))
+spawn_battle_particles (void)
+{
+  int x, y, step;
+  static int frame = 0;
+
+  frame++;
+  /* Only scan every 2nd frame to save CPU, and sample sparse grid */
+  if ((frame & 1) != 0)
+    return;
+
+  step = 6;
+  for (y = step; y < CURRENT_AREA_H - step; y += step)
+    for (x = step; x < CURRENT_AREA_W - step; x += step)
+      {
+        PLACE *p = CURRENT_AREA + (y * CURRENT_AREA_W + x);
+        PLACE *pr = p + step;
+        PLACE *pd = p + step * CURRENT_AREA_W;
+
+        if (p->fighter && pr->fighter
+            && p->fighter->team != pr->fighter->team)
+          {
+            int t1 = (int) (unsigned char) p->fighter->team;
+            int t2 = (int) (unsigned char) pr->fighter->team;
+            int c1 = COLOR_FIRST_ENTRY[t1] + COLORS_PER_TEAM - 1;
+            int c2 = COLOR_FIRST_ENTRY[t2] + COLORS_PER_TEAM - 1;
+            lw_particles_spawn ((float) x, (float) y, 1, c1,
+                                LW_PARTICLE_SPARK);
+            lw_particles_spawn ((float) x, (float) y, 1, c2,
+                                LW_PARTICLE_SPARK);
+            lw_particles_spawn ((float) x, (float) y, 1, MENU_FG,
+                                LW_PARTICLE_SPARK);
+          }
+        if (p->fighter && pd->fighter
+            && p->fighter->team != pd->fighter->team)
+          {
+            int t1 = (int) (unsigned char) p->fighter->team;
+            int t2 = (int) (unsigned char) pd->fighter->team;
+            int c1 = COLOR_FIRST_ENTRY[t1] + COLORS_PER_TEAM - 1;
+            int c2 = COLOR_FIRST_ENTRY[t2] + COLORS_PER_TEAM - 1;
+            lw_particles_spawn ((float) x, (float) y, 1, c1,
+                                LW_PARTICLE_SPARK);
+            lw_particles_spawn ((float) x, (float) y, 1, c2,
+                                LW_PARTICLE_SPARK);
+          }
+      }
+}
+
 static void
 fill_next_screen (void)
 {
@@ -523,6 +583,16 @@ fill_next_screen (void)
        * physical drawing of the map
        */
       display_area ();
+      /*
+       * update and draw particles on top of the game area
+       * particles spawn directly from fighter.c combat events
+       */
+      lw_particles_update (0.016f);
+      if (NEXT_SCREEN && CURRENT_AREA_W > 0 && CURRENT_AREA_H > 0)
+        lw_particles_draw_scaled (NEXT_SCREEN,
+                                   (float) NEXT_SCREEN->w / CURRENT_AREA_W,
+                                   (float) NEXT_SCREEN->h /
+                                   CURRENT_AREA_H);
       /*
        * we remove the cursors, for they might move next time
        * so they are no longer required
@@ -717,8 +787,25 @@ game (void)
 
   if (!STARTUP_HEADLESS)
     {
+      /*
+       * Clear screen to dark background for clean game display.
+       * The menu background image uses palette entries that get
+       * overwritten by team colors, so we fill with MENU_BG instead.
+       */
+      if (screen)
+        clear_to_color (screen, MENU_BG);
+      /*
+       * initialize particle effects
+       */
+      lw_particles_init ();
+      /*
+       * resets the secret code sequences
+       */
       watchdog_reset ();
       reset_code ();
+      /*
+       * resets input buffers and control interfaces
+       */
       lw_mouse_reset_control ();
     }
   reset_computer_path ();

@@ -52,7 +52,7 @@
 /* includes                                                         */
 /*==================================================================*/
 
-#include <allegro.h>
+#include "sdl_compat.h"
 
 #include "army.h"
 #include "config.h"
@@ -62,6 +62,8 @@
 #include "mesh.h"
 #include "fighter.h"
 #include "monster.h"
+#include "particles.h"
+#include "palette.h"
 #include "palette.h"
 #include "startup.h"
 #include "lwtime.h"
@@ -481,14 +483,39 @@ move_fighters (void)
                             if (p0->mesh
                                 && p0->fighter && p0->fighter->team != team)
                               {
-                                p0->fighter->health -= attack[team];
-                                if (p0->fighter->health < 0)
-                                  {
-                                    while (p0->fighter->health < 0)
-                                      p0->fighter->health += new_health[team];
-                                    p0->fighter->team = team;
-                                  }
-                                disp_fighter (p0->fighter);
+                                {
+                                  int old_team = p0->fighter->team;
+                                  p0->fighter->health -= attack[team];
+                                  if (p0->fighter->health < 0)
+                                    {
+                                      while (p0->fighter->health < 0)
+                                        p0->fighter->health += new_health[team];
+                                      p0->fighter->team = team;
+                                      /* Old team dissolves away - burst with small spread */
+                                      {
+                                        int pn;
+                                        int base_col = COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2;
+                                        for (pn = 0; pn < 5; ++pn)
+                                          {
+                                            float px = (float) (p0->fighter->x + (rand () % 5 - 2));
+                                            float py = (float) (p0->fighter->y + (rand () % 5 - 2));
+                                            lw_particles_spawn (px, py, 1, base_col,
+                                                                LW_PARTICLE_DISSOLVE);
+                                          }
+                                      }
+                                      /* Throttled small shake on direct kills */
+                                      {
+                                        static int shake_cnt = 0;
+                                        shake_cnt++;
+                                        if (shake_cnt >= 30)
+                                          {
+                                            shake_cnt = 0;
+                                            lw_sdl_trigger_shake (2.0f);
+                                          }
+                                      }
+                                    }
+                                  disp_fighter (p0->fighter);
+                                }
                               }
                             else
                               {
@@ -496,16 +523,23 @@ move_fighters (void)
                                     && p1->fighter
                                     && p1->fighter->team != team)
                                   {
-                                    p1->fighter->health -= attack[team]
-                                      >> SIDE_ATTACK_FACTOR;
-                                    if (p1->fighter->health < 0)
-                                      {
-                                        while (p1->fighter->health < 0)
-                                          p1->fighter->health +=
-                                            new_health[team];
-                                        p1->fighter->team = team;
-                                      }
-                                    disp_fighter (p1->fighter);
+                                    {
+                                      int old_team = p1->fighter->team;
+                                      p1->fighter->health -= attack[team]
+                                        >> SIDE_ATTACK_FACTOR;
+                                      if (p1->fighter->health < 0)
+                                        {
+                                          while (p1->fighter->health < 0)
+                                            p1->fighter->health +=
+                                              new_health[team];
+                                          p1->fighter->team = team;
+                                          lw_particles_spawn ((float) p1->fighter->x,
+                                                               (float) p1->fighter->y, 2,
+                                                               COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2,
+                                                               LW_PARTICLE_DISSOLVE);
+                                        }
+                                      disp_fighter (p1->fighter);
+                                    }
                                   }
                                 else
                                   {
@@ -513,16 +547,23 @@ move_fighters (void)
                                         && p2->fighter
                                         && p2->fighter->team != team)
                                       {
-                                        p2->fighter->health -= attack[team]
-                                          >> SIDE_ATTACK_FACTOR;
-                                        if (p2->fighter->health < 0)
-                                          {
-                                            while (p2->fighter->health < 0)
-                                              p2->fighter->health +=
-                                                new_health[team];
-                                            p2->fighter->team = team;
-                                          }
-                                        disp_fighter (p2->fighter);
+                                        {
+                                          int old_team = p2->fighter->team;
+                                          p2->fighter->health -= attack[team]
+                                            >> SIDE_ATTACK_FACTOR;
+                                          if (p2->fighter->health < 0)
+                                            {
+                                              while (p2->fighter->health < 0)
+                                                p2->fighter->health +=
+                                                  new_health[team];
+                                              p2->fighter->team = team;
+                                              lw_particles_spawn ((float) p2->fighter->x,
+                                                                   (float) p2->fighter->y, 2,
+                                                                   COLOR_FIRST_ENTRY[(int)(unsigned char)old_team] + COLORS_PER_TEAM / 2,
+                                                                   LW_PARTICLE_DISSOLVE);
+                                            }
+                                          disp_fighter (p2->fighter);
+                                        }
                                       }
                                     else
                                       {
